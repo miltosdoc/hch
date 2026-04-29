@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <title>Integrationsportal - Guide & GDPR</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="dashboard-body">
+    <nav class="glass-nav">
+        <div class="nav-brand">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="HCH Logo" onerror="this.style.display='none'">
+            <span>Integrationsportal</span>
+        </div>
+        <div class="nav-controls">
+            <a href="{{ url_for('dashboard') }}" class="nav-link">📤 Upload</a>
+            <span class="nav-separator">|</span>
+            <a href="{{ url_for('statistics') }}" class="nav-link">📊 Statistik</a>
+            <span class="nav-separator">|</span>
+            <span class="nav-active">🛡️ Guide & Legal</span>
+            <span class="nav-separator">|</span>
+            <button id="theme-toggle" class="btn-secondary" style="border-radius: 50%; padding: 0.5rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">🌙</button>
+            <a href="{{ url_for('logout') }}" class="btn-secondary">Logout</a>
+        </div>
+    </nav>
+    <div class="main-content">
+        <div class="glass-card" style="max-width: 800px; margin: 0 auto;">
+            <h2>Hjärtcentrum Halland Integrationsportal</h2>
+            <p style="margin-bottom: 2rem; color: var(--text-muted);">Officiellt dokumentations- och säkerhetscenter för Webdoc-integrationen.</p>
+
+            <div class="form-group">
+                <h3>Hur fungerar "Watcher Bot"?</h3>
+                <p style="margin-bottom: 1rem; color: var(--text-muted); line-height: 1.6;">
+                    Systemet använder en automatiserad scanner-tjänst. Alla filer som läggs i nätverksmappen <strong>\\HJ-VAR-DT01\Pictures\2026Scan\Bot</strong> läses in i kronologisk ordning.
+                    Tjänsten extraherar Personnummer med hjälp av AI OCR-avläsning på första sidan och samlar in alla efterföljande sidor för samma patient tills nästa Personnummer hittas. 
+                    Därefter slås filerna samman automatiskt till en PDF-fil som omedelbart laddas upp i Webdoc.
+                </p>
+            </div>
+
+            <div class="form-group" style="padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                <h3>Starta om Servern (Felsökning)</h3>
+                <p style="margin-bottom: 1rem; color: var(--text-muted); line-height: 1.6;">
+                    Om du gör ändringar i källkoden (`app.py` m.m.) måste Python-servern och bakgrunds-botarna startas om för att läsa in ändringarna. Eftersom dessa körs helt osynligt i bakgrunden (via `.vbs`), gör du detta via en PowerShell-terminal.
+                </p>
+                <div style="background: var(--bg-hover); padding: 1rem; border-radius: 0.5rem; font-family: monospace; font-size: 0.85rem; color: var(--text-main); margin-bottom: 1rem;">
+                    <span style="color: var(--primary);"># 1. Navigera först till mappen i Powershell:</span><br>
+                    cd .\Desktop\WebdocAPI<br><br>
+                    <span style="color: var(--primary);"># 2. Döda processerna och starta om dem med detta kommando:</span><br>
+                    taskkill /F /IM pythonw.exe ; cscript run_background.vbs ; cscript run_bot.vbs
+                </div>
+                <p style="margin-bottom: 1rem; color: var(--text-muted); line-height: 1.6;">
+                    <strong>Enklaste sättet att navigera rätt:</strong> Öppna mappen <code>WebdocAPI</code> på ditt skrivbord, håll nere <strong>Shift</strong> och Högerklicka var som helst på en tom yta inuti mappen. Välj <kbd>Öppna i Terminal</kbd> eller <kbd>Öppna PowerShell-fönster här</kbd>. Då hamnar du direkt i rätt mapp och kan klistra in kommandot för steg 2!
+                </p>
+            </div>
+
+            <div class="form-group" style="padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                <h3>GDPR & Patientsäkerhet (Compliance)</h3>
+                <p style="margin-bottom: 1rem; color: var(--text-muted); line-height: 1.6;">
+                    Integrationsportal är utvecklad för att strikt regelefterleva GDPR och svensk patientdatalagstiftning.
+                </p>
+                <ul style="color: var(--text-muted); padding-left: 1.5rem; line-height: 1.8;">
+                    <li><strong>Lokal Databearbetning:</strong> OCR- och PDF-sammanslagning sker uteslutande lokalt, bakom klinikens egen nätverksbrandvägg. Filerna lämnar aldrig er domän för avläsning.</li>
+                    <li><strong>Säker Krypterad Överföring:</strong> Kommunikationen med Carasent / Webdoc sker enbart genom slut-till-slut-krypterade (TLS 1.2+) HTTPS-API-kanaler.</li>
+                    <li><strong>Minimal Datalagring:</strong> Portalen läser endast den vitala informationen ur remisser för att skapa patienten och skickar sedan omedelbart dokumentet vidare. Filer tas bort från arbetsminnet när de laddats upp framgångsrikt.</li>
+                </ul>
+            </div>
+
+            <div class="form-group" style="padding-top: 1.5rem; border-top: 1px solid var(--border-color); margin-top: 2rem;">
+                <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+                    <strong>Copyright © 2026 Hjärtcentrum Halland.</strong><br>
+                    Alla rättigheter reserverade. Detta är ett internt verktyg utformat exklusivt för Hjärtcentrum Halland av Google DeepMind Advanced Agentic Coding. Otillåten distribution eller tredje-parts tillgång är strängt förbjuden.
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='theme.js') }}"></script>
+</body>
+</html>

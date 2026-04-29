@@ -1,0 +1,6 @@
+{
+  "openai_api_url": "https://web.xsilico.ai/api/v1/chat/completions",
+  "openai_api_key": "sk-4d9e5cc5b9214994bd903dc848b13380",
+  "openai_model": "google/gemini-3.1-flash-lite-preview",
+  "port": 8086
+}

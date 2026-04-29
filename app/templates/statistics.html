@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistik — Webdoc Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>window.STAT_MODE = '{{ mode }}';</script>
+</head>
+<body class="dashboard-body">
+    <nav class="glass-nav">
+        <div class="nav-brand">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="HCH Logo" onerror="this.style.display='none'">
+            <span>Integrationsportal</span>
+        </div>
+        <div class="nav-controls">
+            <a href="{{ url_for('dashboard') }}" class="nav-link">📤 Upload</a>
+            <span class="nav-separator">|</span>
+            <span class="nav-active">📊 Statistik</span>
+            <span class="nav-separator">|</span>
+            <a href="{{ url_for('guide') }}" class="nav-link">🛡️ Guide & Legal</a>
+            <span class="nav-separator">|</span>
+            <button id="theme-toggle" class="btn-secondary" style="border-radius: 50%; padding: 0.5rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">🌙</button>
+            <span class="nav-separator">|</span>
+            <span id="api-status" class="status-badge connecting">Checking API...</span>
+            <a href="{{ url_for('logout') }}" class="btn-secondary">Logout</a>
+        </div>
+    </nav>
+
+    <div class="stats-content">
+        <!-- Dashboard Navigation -->
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+            <a href="/statistics" class="btn-secondary" style="border-radius: 20px; {% if mode == 'normal' %}background: var(--primary); color: white; border-color: var(--primary);{% endif %}">📊 Operativ Statistik</a>
+            <a href="/statistics/incoming" class="btn-secondary" style="border-radius: 20px; {% if mode == 'incoming' %}background: var(--primary); color: white; border-color: var(--primary);{% endif %}">📥 Inflöde Remisser</a>
+            <a href="/statistics/admin" class="btn-secondary" style="border-radius: 20px; margin-left: auto; {% if mode == 'admin' %}background: rgba(239, 68, 68, 0.8); color: white; border-color: transparent;{% else %}color: var(--error); border-color: rgba(239, 68, 68, 0.3);{% endif %}">🔒 Admin Visa</a>
+        </div>
+        
+        <!-- Date Filtering Panel -->
+        <div class="glass-card" style="margin-bottom: 2rem; padding: 1.5rem;">
+            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-end;">
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem;">Filtrera Efter Period:</label>
+                    <select id="filter-type" style="padding: 0.6rem; border-radius: 0.5rem; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); width: 100%;">
+                        <option value="first_booking_date" {% if mode != 'incoming' %}selected{% endif %}>Första Bokningsdatum</option>
+                        <option value="referral_date">Remissdatum</option>
+                        <option value="vardgaranti_date" {% if mode == 'incoming' %}selected{% endif %}>Vårdgarantidatum</option>
+                        <option value="uploaded_at">Uppladdningsdatum</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 150px;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem;">Startdatum (Från):</label>
+                    <input type="date" id="filter-start" style="padding: 0.6rem; border-radius: 0.5rem; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); width: 100%;">
+                </div>
+                <div style="flex: 1; min-width: 150px;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem;">Slutdatum (Till):</label>
+                    <input type="date" id="filter-end" style="padding: 0.6rem; border-radius: 0.5rem; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); width: 100%;">
+                </div>
+                <div style="flex: 1; min-width: 150px;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem;">Postledtid:</label>
+                    <select id="post-delay" onchange="applyDateFilter()" style="padding: 0.6rem; border-radius: 0.5rem; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); width: 100%;">
+                        <option value="0" selected>0 Dagar</option>
+                        <option value="1">1 Dag</option>
+                        <option value="2">2 Dagar</option>
+                        <option value="3">3 Dagar</option>
+                        <option value="4">4 Dagar</option>
+                        <option value="5">5 Dagar</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn-primary" onclick="applyDateFilter()" style="padding: 0.6rem 1.5rem;">Använd Filter</button>
+                    <button class="btn-secondary" onclick="resetDateFilter()" style="padding: 0.6rem 1.5rem;">Återställ</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-row">
+            <div class="glass-card summary-card">
+                <div class="summary-label">Patienter</div>
+                <div class="summary-value" id="total-patients">—</div>
+            </div>
+            {% if mode == 'admin' %}
+            <div class="glass-card summary-card">
+                <div class="summary-label">Median väntetid (Remiss)</div>
+                <div class="summary-value" id="val-referral">—</div>
+                <div class="summary-sub" id="sub-referral"></div>
+                <div style="margin-top: 0.8rem; font-size: 0.85rem; font-weight: 500;">
+                    <span id="ref-pct-60" style="color: var(--text-main);">— < 60d</span> | 
+                    <span id="ref-pct-90" style="color: var(--text-main);">— < 90d</span>
+                </div>
+            </div>
+            {% elif mode == 'incoming' %}
+            <div class="glass-card summary-card" style="border-color: #f59e0b;">
+                <div class="summary-label">Totalt Inflöde (Bokade / Obokade)</div>
+                <div class="summary-value" id="val-incoming-total">—</div>
+                <div class="summary-sub" id="sub-incoming-split"></div>
+            </div>
+            <div class="glass-card summary-card" style="border-color: #10b981;">
+                <div class="summary-label">Median Inflöde / vecka</div>
+                <div class="summary-value" id="val-incoming-median">—</div>
+                <div class="summary-sub">Genomsnittlig volym</div>
+            </div>
+            {% else %}
+            <div class="glass-card summary-card">
+                <div class="summary-label">Förbrukad garantitid (median)</div>
+                <div class="summary-value" id="val-extern-delay">—</div>
+                <div class="summary-sub" id="sub-extern-delay"></div>
+            </div>
+            {% endif %}
+            
+            {% if mode != 'incoming' %}
+            <div class="glass-card summary-card">
+                <div class="summary-label">Median väntetid (Vårdgaranti)</div>
+                <div class="summary-value" id="val-vardgaranti">—</div>
+                <div class="summary-sub" id="sub-vardgaranti"></div>
+                <div style="margin-top: 0.8rem; font-size: 0.85rem; font-weight: 500;">
+                    <span id="vg-pct-60" style="color: var(--text-main);">— < 60d</span> | 
+                    <span id="vg-pct-90" style="color: var(--text-main);">— < 90d</span>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="glass-card summary-card">
+                <div class="summary-label">Senaste synk</div>
+                <div class="summary-value summary-value-sm" id="last-sync">—</div>
+            </div>
+        </div>
+
+        <!-- Historical Trend Charts -->
+        <div style="display: flex; gap: 1.5rem; margin-bottom: 2rem; flex-wrap: wrap;">
+            {% if mode == 'admin' %}
+            <div class="glass-card" style="flex: 1; min-width: 400px; padding: 1.5rem;">
+                <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-main); font-size: 1rem;">Trend: Remiss (% i tid)</h3>
+                <div style="position: relative; height: 250px; width: 100%;">
+                    <canvas id="chart-referral"></canvas>
+                </div>
+            </div>
+            {% elif mode == 'incoming' %}
+            <div class="glass-card" style="flex: 1; min-width: 400px; padding: 1.5rem; width: 100%;">
+                <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-main); font-size: 1rem;">Volym Inflöde: Bokade vs Obokade Remisser</h3>
+                <div style="position: relative; height: 350px; width: 100%;">
+                    <canvas id="chart-incoming"></canvas>
+                </div>
+            </div>
+            {% else %}
+            <div class="glass-card" style="flex: 1; min-width: 400px; padding: 1.5rem;">
+                <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-main); font-size: 1rem;">Trend: Förbrukad garantitid (dagar)</h3>
+                <div style="position: relative; height: 250px; width: 100%;">
+                    <canvas id="chart-extern"></canvas>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if mode != 'incoming' %}
+            <div class="glass-card" style="flex: 1; min-width: 400px; padding: 1.5rem;">
+                <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-main); font-size: 1rem;">Trend: Vårdgaranti (% i tid)</h3>
+                <div style="position: relative; height: 250px; width: 100%;">
+                    <canvas id="chart-vg"></canvas>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Controls -->
+        <div class="glass-card controls-panel">
+            <div class="controls-row">
+                <button class="btn-primary btn-sync" id="btn-sync" onclick="syncBookings()">
+                    <span class="sync-icon">🔄</span> Synka bokningar
+                </button>
+                <button class="btn-secondary" onclick="exportCSV()">📥 Exportera CSV</button>
+                <input type="file" id="import-csv-file" accept=".csv" style="display: none;" onchange="importCSV(this)">
+                <button class="btn-secondary" onclick="document.getElementById('import-csv-file').click()">📁 Importera CSV</button>
+                <div class="search-group">
+                    <input type="text" id="search-input" placeholder="Sök personnummer eller namn..." oninput="filterTable()">
+                </div>
+            </div>
+        </div>
+
+        <!-- Patient Table -->
+        <div class="glass-card table-panel">
+            <div class="table-scroll">
+                <table id="patients-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="sortTable('personal_number')">Personnummer</th>
+                            <th class="sortable" onclick="sortTable('last_name')">Namn</th>
+                            <th class="sortable" onclick="sortTable('uploaded_at')">Uppladdad</th>
+                            <th class="sortable" onclick="sortTable('referral_date')">Remissdatum</th>
+                            <th class="sortable" onclick="sortTable('vardgaranti_date')">Vårdgarantidatum</th>
+                            <th class="sortable" onclick="sortTable('first_booking_date')">Första Bokning</th>
+                            <th class="sortable" onclick="sortTable('wait_referral')">Väntetid Remiss</th>
+                            <th class="sortable" onclick="sortTable('wait_vardgaranti')">Väntetid VG</th>
+                            <th>Åtgärd</th>
+                        </tr>
+                    </thead>
+                    <tbody id="patients-tbody">
+                        <tr><td colspan="8" class="loading-cell">Laddar patientdata...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal-overlay" id="edit-modal" style="display:none;">
+        <div class="glass-card modal-card">
+            <h3 id="modal-title">Redigera datum</h3>
+            <div class="form-group">
+                <label>Personnummer</label>
+                <input type="text" id="modal-pn" readonly>
+            </div>
+            <div class="form-group">
+                <label>Remissdatum</label>
+                <input type="date" id="modal-referral">
+            </div>
+            <div class="form-group">
+                <label>Vårdgarantidatum</label>
+                <input type="date" id="modal-vardgaranti">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-primary" onclick="savePatient()">Spara</button>
+                <button class="btn-secondary" onclick="closeModal()">Avbryt</button>
+                <button class="btn-secondary" onclick="deleteFromModal()" style="color: var(--error); border-color: rgba(239,68,68,0.3); margin-left: auto;">🗑️ Radera</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='statistics.js') }}?v=8"></script>
+    <script src="{{ url_for('static', filename='theme.js') }}"></script>
+</body>
+</html>

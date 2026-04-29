@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECG Viewer - Hjärtcentrum Halland</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; 
+            background: #f8fafc; 
+            color: #0f172a; 
+            height: 100vh; 
+            display: flex; flex-direction: column; 
+        }
+        
+        .header { background: #323e4f; padding: 16px 24px; border-bottom: 1px solid #1e293b; display: flex; align-items: center; gap: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 10; }
+        .logo { display: flex; align-items: center; gap: 12px; }
+        .logo svg { width: 36px; height: 36px; }
+        .logo-text { font-size: 1.25rem; font-weight: 700; color: #ffffff; letter-spacing: 0.05em; text-transform: uppercase; }
+        .logo-sub { font-size: 0.75rem; color: #cbd5e1; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
+        
+        .controls { display: flex; gap: 12px; flex: 1; align-items: center; margin-left: 24px; }
+        .search-box { 
+            flex: 1; max-width: 500px; padding: 10px 16px; 
+            border: 1px solid #cbd5e1; border-radius: 8px; 
+            background: #f1f5f9; color: #0f172a; 
+            font-size: 14px; transition: all 0.2s; 
+        }
+        .search-box:focus { outline: none; border-color: #5b8a9b; box-shadow: 0 0 0 3px rgba(91,138,155,0.15); background: #ffffff; }
+        .search-box::placeholder { color: #64748b; }
+        
+        .btn { background: #323e4f; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(50,62,79,0.2); }
+        .btn:hover { background: #2b3643; transform: translateY(-1px); box-shadow: 0 6px 8px -1px rgba(50,62,79,0.3); }
+        .btn:disabled { background: #cbd5e1; box-shadow: none; color: #64748b; cursor: not-allowed; transform: none; }
+        .btn-outline { background: transparent; color: #5b8a9b; border: 1px solid #5b8a9b; }
+        .btn-outline:hover { background: #f1f5f9; }
+        
+        .stats { font-size: 13px; color: #cbd5e1; margin-left: auto; display: flex; align-items: center; gap: 8px; }
+        .stats-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; }
+        .stats-dot.indexing { background: #f59e0b; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        .main { display: flex; flex: 1; overflow: hidden; }
+        
+        .sidebar { width: 340px; background: #ffffff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; }
+        .sidebar-header { padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #64748b; font-weight: 600; display: flex; justify-content: space-between; align-items: center; background: #f8fafc; }
+        .file-list { flex: 1; overflow-y: auto; }
+        .file-item { padding: 14px 16px; cursor: pointer; border-bottom: 1px solid #f1f5f9; transition: all 0.15s; }
+        .file-item:hover { background: #f8fafc; }
+        .file-item.active { background: #f1f5f9; border-left: 3px solid #5b8a9b; }
+        .file-item .name { font-weight: 500; margin-bottom: 4px; word-break: break-all; font-size: 13px; color: #1e293b; }
+        .file-item .meta { font-size: 11px; color: #64748b; }
+        .file-item .match { font-size: 11px; color: #5b8a9b; margin-top: 6px; background: #f1f5f9; padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(91,138,155,0.1); }
+        
+        .viewer { flex: 1; display: flex; flex-direction: column; background: #e2e8f0; }
+        .viewer-toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; background: #ffffff; border-bottom: 1px solid #cbd5e1; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+        .viewer-toolbar button { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+        .viewer-toolbar button:hover { background: #f1f5f9; border-color: #cbd5e1; color: #0f172a; }
+        .viewer-toolbar .page-info { color: #64748b; font-size: 13px; padding: 0 8px; font-weight: 500; }
+        .viewer-toolbar .spacer { flex: 1; }
+        
+        .pdf-container { flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 24px; }
+        #pdf-canvas { background: #fff; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); border-radius: 4px; }
+        
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #64748b; text-align: center; padding: 40px; }
+        .empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; color: #cbd5e1; }
+        .empty-state p { font-size: 14px; font-weight: 500; }
+        
+        .loading { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #ffffff; padding: 32px 48px; border-radius: 16px; z-index: 1000; display: none; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+        .loading.show { display: block; }
+        .loading .spinner { border: 3px solid #f1f5f9; border-top: 3px solid #5b8a9b; border-radius: 50%; width: 36px; height: 36px; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+        .loading-text { color: #1e293b; font-size: 14px; font-weight: 500; }
+        
+        .indexing-bar { padding: 10px 16px; background: #fef3c7; border-bottom: 1px solid #fcd34d; font-size: 12px; color: #92400e; display: none; font-weight: 500; }
+        .indexing-bar.show { display: block; }
+        
+        .highlight { background: #f1f5f9; color: #5b8a9b; padding: 1px 4px; border-radius: 3px; font-weight: 600; border: 1px solid rgba(91,138,155,0.2); }
+
+        /* Login Overlay */
+        #loginOverlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: #f8fafc; z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden;
+        }
+        
+        .bg-orb { display: none; }
+
+        .login-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0; border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.01);
+            width: 100%; max-width: 400px; z-index: 10;
+            overflow: hidden;
+        }
+        .login-header {
+            background: #323e4f;
+            padding: 40px 32px 24px; text-align: center;
+            border-bottom: 1px solid #1e293b;
+        }
+        .login-header svg { width: 72px; height: 72px; margin: 0 auto 16px; }
+        .login-header h1 { font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+        .login-form { padding: 32px; display: flex; flex-direction: column; gap: 20px; }
+        .input-group { position: relative; }
+        .input-group input {
+            width: 100%; background: #f8fafc;
+            border: 1px solid #cbd5e1; border-radius: 12px;
+            padding: 14px 16px 14px 44px; color: #0f172a; font-size: 14px;
+            transition: all 0.2s;
+        }
+        .input-group input:focus { outline: none; border-color: #5b8a9b; box-shadow: 0 0 0 3px rgba(91,138,155,0.15); background: #ffffff; }
+        .input-group input::placeholder { color: #94a3b8; }
+        .input-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8; width: 18px; height: 18px; }
+        
+        .login-btn {
+            width: 100%; background: #323e4f;
+            color: white; border: none; padding: 14px; border-radius: 12px;
+            font-weight: 600; font-size: 14px; cursor: pointer; transition: all 0.2s;
+            display: flex; justify-content: center; align-items: center; gap: 8px;
+        }
+        .login-btn:hover { background: #2b3643; transform: scale(1.01); box-shadow: 0 4px 12px rgba(50,62,79,0.2); }
+        .login-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        
+        .login-footer { padding: 0 32px 24px; text-align: center; }
+        .login-footer p { font-size: 11px; color: #94a3b8; }
+        
+        .login-error { 
+            background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); 
+            color: #fca5a5; padding: 12px 16px; border-radius: 12px; font-size: 12px; 
+            display: none; align-items: center; gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Overlay -->
+    <div id="loginOverlay">
+        <div class="bg-orb orb-1"></div>
+        <div class="bg-orb orb-2"></div>
+        <div class="bg-orb orb-3"></div>
+        <div class="login-card">
+            <div class="login-header">
+                <img src="/logoofficial.png" alt="Logo" style="height: 72px; margin: 0 auto 16px; display: block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="display:none; width: 72px; height: 72px; margin: 0 auto 16px;">
+                  <polygon points="15,35 30,15 50,40" fill="#9ca3af" />
+                  <polygon points="30,15 50,15 50,40" fill="#d1d5db" />
+                  <polygon points="15,35 50,40 50,85" fill="#e5e7eb" />
+                  <polygon points="85,35 70,15 50,40" fill="#6b7280" />
+                  <polygon points="70,15 50,15 50,40" fill="#9ca3af" />
+                  <polygon points="85,35 50,40 50,85" fill="#d1d5db" />
+                </svg>
+                <h1>EKG Arkiv</h1>
+            </div>
+            <form id="loginForm" class="login-form">
+                <div class="login-error" id="loginError">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <span>Fel användarnamn eller lösenord</span>
+                </div>
+                <div class="input-group">
+                    <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    <input type="text" id="username" placeholder="Användarnamn" required>
+                </div>
+                <div class="input-group">
+                    <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    <input type="password" id="password" placeholder="Lösenord" required>
+                </div>
+                <button type="submit" class="login-btn" id="loginBtn">Logga in</button>
+            </form>
+            <div class="login-footer">
+                <p>© 2026 Hjärtcentrum Halland · ECG Arkiv</p>
+            </div>
+        </div>
+    </div>
+    <div class="header">
+        <div class="logo">
+            <img src="/logoofficial.png" alt="Logo" style="height: 48px; display: block;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="display:none; width: 48px; height: 48px;">
+              <polygon points="15,35 30,15 50,40" fill="#9ca3af" />
+              <polygon points="30,15 50,15 50,40" fill="#d1d5db" />
+              <polygon points="15,35 50,40 50,85" fill="#e5e7eb" />
+              <polygon points="85,35 70,15 50,40" fill="#6b7280" />
+              <polygon points="70,15 50,15 50,40" fill="#9ca3af" />
+              <polygon points="85,35 50,40 50,85" fill="#d1d5db" />
+            </svg>
+            <div>
+                <div class="logo-text">EKG Arkiv</div>
+            </div>
+        </div>
+        <div class="controls">
+            <input type="text" class="search-box" id="searchInput" placeholder="Sök på filnamn eller innehåll..." oninput="performSearch()">
+            <button class="btn" id="indexBtn" onclick="startIndexing()" title="Extrahera text från EKG för att göra den sökbar" style="margin-left: 8px;">Indexera nya</button>
+            <button class="btn btn-outline" onclick="logout()" style="margin-left: 16px;">Logga ut</button>
+        </div>
+        <div class="stats">
+            <span class="stats-dot" id="statusDot"></span>
+            <span id="stats">Laddar...</span>
+        </div>
+    </div>
+    
+    <div class="main">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <span id="listCount">ECG-filer</span>
+            </div>
+            <div class="indexing-bar" id="indexProgress"></div>
+            <div class="file-list" id="fileList">
+                <div class="empty-state">
+                    <div class="spinner" style="border: 3px solid #e0e4e8; border-top: 3px solid #5b8a9b; border-radius: 50%; width: 32px; height: 32px; animation: spin 0.8s linear infinite;"></div>
+                    <p>Laddar PDF-filer...</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="viewer">
+            <div class="viewer-toolbar" id="toolbar" style="display:none">
+                <span class="page-info" id="pageInfo" style="font-weight: 600;">1 sida</span>
+                <span class="spacer"></span>
+                <button onclick="zoomOut()">−</button>
+                <span class="page-info" id="zoomLevel">100%</span>
+                <button onclick="zoomIn()">+</button>
+                <button onclick="openInNewTab()">Öppna i webbläsare</button>
+            </div>
+            <div class="pdf-container" id="pdfContainer">
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
+                    <p>Välj ett EKG för att visa</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading"><div class="spinner"></div><div class="loading-text" id="loadingText">Laddar...</div></div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        const DB_NAME = 'ECGViewerDB';
+        const DB_VERSION = 1;
+        let db = null;
+        let files = [];
+        let textIndex = {};
+        let currentFile = null;
+        let currentPdf = null;
+        let currentPage = 1;
+        let totalPages = 1;
+        let scale = 1.5;
+        let isIndexing = false;
+
+        // IndexedDB setup
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => { db = request.result; resolve(db); };
+                request.onupgradeneeded = (e) => {
+                    const database = e.target.result;
+                    if (!database.objectStoreNames.contains('pdfIndex')) {
+                        database.createObjectStore('pdfIndex', { keyPath: 'name' });
+                    }
+                };
+            });
+        }
+
+        async function loadIndexFromDB() {
+            if (!db) return;
+            return new Promise((resolve) => {
+                const transaction = db.transaction(['pdfIndex'], 'readonly');
+                const store = transaction.objectStore('pdfIndex');
+                const request = store.getAll();
+                request.onsuccess = () => {
+                    const records = request.result || [];
+                    records.forEach(r => { textIndex[r.name] = r.text; });
+                    resolve(records.length);
+                };
+                request.onerror = () => resolve(0);
+            });
+        }
+
+        async function saveIndexToDB(name, text) {
+            if (!db) return;
+            return new Promise((resolve) => {
+                const transaction = db.transaction(['pdfIndex'], 'readwrite');
+                const store = transaction.objectStore('pdfIndex');
+                store.put({ name, text, indexed: new Date().toISOString() });
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => resolve();
+            });
+        }
+
+        let pollingInterval;
+        let lastKnownLatestFile = null;
+
+        function startPolling() {
+            if (pollingInterval) clearInterval(pollingInterval);
+            pollingInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/files');
+                    if (response.ok) {
+                        let fetchedFiles = await response.json();
+                        let newFiles = fetchedFiles.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+                        
+                        if (newFiles.length > 0 && newFiles[0].name !== lastKnownLatestFile) {
+                            files = newFiles;
+                            lastKnownLatestFile = files[0].name;
+                            updateStats();
+                            
+                            const searchInput = document.getElementById('searchInput');
+                            if (searchInput.value) {
+                                searchInput.value = '';
+                                window._currentList = null;
+                            }
+                            
+                            renderFileList(files);
+                            loadPdfByIndex(0);
+                        }
+                    }
+                } catch (e) { console.error('Polling error:', e); }
+            }, 5000);
+        }
+
+        async function loadFileList() {
+            try {
+                await initDB();
+                const indexedCount = await loadIndexFromDB();
+                
+                const response = await fetch('/api/files');
+                let fetchedFiles = await response.json();
+                files = fetchedFiles.sort((a, b) => new Date(b.modified) - new Date(a.modified));
+                updateStats();
+                renderFileList(files);
+                
+                if (files.length > 0 && !lastKnownLatestFile) {
+                    lastKnownLatestFile = files[0].name;
+                    loadPdfByIndex(0);
+                }
+                
+                startPolling();
+                
+                if (indexedCount > 0) {
+                    document.getElementById('indexBtn').textContent = 'Indexera nya';
+                }
+            } catch (err) {
+                if (err && err.message && err.message.includes('401')) {
+                    document.getElementById('fileList').innerHTML = '<div class="empty-state"><p>Vänligen logga in för att se filer</p></div>';
+                } else {
+                    document.getElementById('fileList').innerHTML = '<div class="empty-state"><p style="color:#ef4444">Fel vid laddning: ' + (err.message || 'Okänt fel') + '</p></div>';
+                }
+            }
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const err = document.getElementById('loginError');
+            btn.disabled = true; btn.textContent = 'Loggar in...'; err.style.display = 'none';
+            
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: e.target[0].value, password: e.target[1].value
+                    })
+                });
+                
+                if (res.ok) {
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    loadFileList();
+                } else {
+                    err.style.display = 'flex';
+                }
+            } catch (e) {
+                err.style.display = 'flex';
+            } finally {
+                btn.disabled = false; btn.textContent = 'Logga in';
+            }
+        });
+
+        function logout() {
+            document.cookie = "PulsusAuth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            window.location.reload();
+        }
+
+        // Check auth state on load
+        async function checkAuthAndLoad() {
+            try {
+                const response = await fetch('/api/files');
+                if (response.status === 401) {
+                    document.getElementById('loginOverlay').style.display = 'flex';
+                } else if (response.ok) {
+                    document.getElementById('loginOverlay').style.display = 'none';
+                    loadFileList();
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function startIndexing() {
+            if (isIndexing) return;
+            isIndexing = true;
+            const btn = document.getElementById('indexBtn');
+            const dot = document.getElementById('statusDot');
+            btn.disabled = true;
+            btn.textContent = 'Indexerar...';
+            dot.classList.add('indexing');
+            
+            const progress = document.getElementById('indexProgress');
+            progress.classList.add('show');
+            
+            let newCount = 0;
+            let skipped = 0;
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                
+                // Skip already indexed files
+                if (textIndex[file.name]) {
+                    skipped++;
+                    continue;
+                }
+                
+                try {
+                    progress.textContent = 'Indexerar: ' + (i + 1) + '/' + files.length + ' - ' + file.name;
+                    const response = await fetch('/api/pdf?name=' + encodeURIComponent(file.name));
+                    const arrayBuffer = await response.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    
+                    let text = '';
+                    for (let p = 1; p <= pdf.numPages; p++) {
+                        const page = await pdf.getPage(p);
+                        const content = await page.getTextContent();
+                        text += content.items.map(item => item.str).join(' ') + ' ';
+                    }
+                    
+                    const lowerText = text.toLowerCase();
+                    textIndex[file.name] = lowerText;
+                    await saveIndexToDB(file.name, lowerText);
+                    newCount++;
+                } catch (err) {
+                    console.error('Error indexing ' + file.name + ':', err);
+                    textIndex[file.name] = '';
+                    await saveIndexToDB(file.name, '');
+                }
+            }
+            
+            progress.textContent = 'Klart! ' + newCount + ' nya indexerade, ' + skipped + ' redan i databasen';
+            setTimeout(() => { progress.classList.remove('show'); }, 3000);
+            
+            btn.disabled = false;
+            btn.textContent = 'Indexera nya';
+            dot.classList.remove('indexing');
+            isIndexing = false;
+            updateStats();
+            
+            if (document.getElementById('searchInput').value) {
+                performSearch();
+            }
+        }
+
+        function updateStats() {
+            const indexed = Object.keys(textIndex).length;
+            document.getElementById('stats').textContent = files.length + ' filer' + (indexed > 0 ? ' (' + indexed + ' indexerade)' : '');
+        }
+
+        function parseFileName(fileName) {
+            const nameWithoutExt = fileName.replace(/\.pdf$/i, '');
+            const parts = nameWithoutExt.split('#');
+            if (parts.length === 4) {
+                const datePart = parts[0].replace(/_/g, '-');
+                const timePart = parts[1].substring(0, 5).replace(/_/g, ':');
+                
+                let pnr = parts[2];
+                if (pnr.length === 12) {
+                    pnr = pnr.substring(0, 8) + '-' + pnr.substring(8);
+                } else if (pnr.length === 10) {
+                    pnr = pnr.substring(0, 6) + '-' + pnr.substring(6);
+                }
+                
+                const name = parts[3].replace(/_/g, ' ');
+                
+                return {
+                    name: name,
+                    pnr: pnr,
+                    datetime: datePart + ' ' + timePart,
+                    isParsed: true
+                };
+            }
+            return { name: fileName, pnr: '', datetime: '', isParsed: false };
+        }
+
+        function renderFileList(filesToShow) {
+            const container = document.getElementById('fileList');
+            document.getElementById('listCount').textContent = filesToShow.length + ' EKG-filer';
+            
+            if (filesToShow.length === 0) {
+                container.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg><p>Inga matchande filer</p></div>';
+                return;
+            }
+            
+            container.innerHTML = filesToShow.map((f, idx) => {
+                const parsed = parseFileName(f.name);
+                let html = '<div class="file-item ' + (currentFile === f.name ? 'active' : '') + '" data-idx="' + idx + '" onclick="loadPdfByIndex(' + idx + ')">';
+                
+                if (parsed.isParsed) {
+                    html += '<div class="name" style="font-size: 14px; font-weight: 600; color: #0f172a;">' + highlightMatch(parsed.name, f.nameMatch) + '</div>';
+                    html += '<div class="meta" style="color: #475569; margin-bottom: 4px; font-weight: 500;">' + highlightMatch(parsed.pnr, f.nameMatch) + '</div>';
+                    html += '<div class="meta">' + parsed.datetime + ' • ' + formatSize(f.size) + '</div>';
+                } else {
+                    html += '<div class="name">' + highlightMatch(f.name, f.nameMatch) + '</div>';
+                    html += '<div class="meta">' + formatSize(f.size) + ' • ' + (f.modified || '') + '</div>';
+                }
+                
+                if (f.textMatch) {
+                    html += '<div class="match">...' + escapeHtml(f.textMatch) + '...</div>';
+                }
+                html += '</div>';
+                return html;
+            }).join('');
+            
+            window._currentList = filesToShow;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function highlightMatch(text, match) {
+            if (!match) return escapeHtml(text);
+            const idx = text.toLowerCase().indexOf(match.toLowerCase());
+            if (idx === -1) return escapeHtml(text);
+            return escapeHtml(text.substring(0, idx)) + 
+                   '<span class="highlight">' + escapeHtml(text.substring(idx, idx + match.length)) + '</span>' +
+                   escapeHtml(text.substring(idx + match.length));
+        }
+
+        function formatSize(bytes) { return (bytes / 1024).toFixed(0) + ' KB'; }
+
+        function performSearch() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            if (!query) { renderFileList(files); return; }
+            
+            const results = [];
+            for (const f of files) {
+                const nameMatch = f.name.toLowerCase().includes(query) ? query : null;
+                let textMatch = null;
+                
+                const indexed = textIndex[f.name];
+                if (indexed) {
+                    const idx = indexed.indexOf(query);
+                    if (idx !== -1) {
+                        const start = Math.max(0, idx - 20);
+                        const end = Math.min(indexed.length, idx + query.length + 30);
+                        textMatch = indexed.substring(start, end).trim();
+                    }
+                }
+                
+                if (nameMatch || textMatch) {
+                    results.push({ ...f, nameMatch, textMatch });
+                }
+            }
+            renderFileList(results);
+        }
+
+        function loadPdfByIndex(idx) {
+            const list = window._currentList || files;
+            if (list[idx]) {
+                loadPdf(list[idx].name);
+            }
+        }
+
+        async function loadPdf(name) {
+            document.getElementById('loading').classList.add('show');
+            document.getElementById('loadingText').textContent = 'Laddar ' + name + '...';
+            
+            try {
+                currentFile = name;
+                const url = '/api/pdf?name=' + encodeURIComponent(name);
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Kunde inte ladda PDF: ' + response.status);
+                
+                const arrayBuffer = await response.arrayBuffer();
+                currentPdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                totalPages = currentPdf.numPages;
+                document.getElementById('toolbar').style.display = 'flex';
+                renderAllPages();
+                
+                document.querySelectorAll('.file-item').forEach((el, i) => {
+                    el.classList.toggle('active', el.dataset.idx == i && (window._currentList || files)[i]?.name === name);
+                });
+            } catch (err) {
+                alert('Fel vid laddning: ' + err.message);
+                console.error(err);
+            } finally {
+                document.getElementById('loading').classList.remove('show');
+            }
+        }
+
+        async function renderAllPages() {
+            if (!currentPdf) return;
+            const container = document.getElementById('pdfContainer');
+            container.innerHTML = '<div class="spinner"></div>';
+            container.style.overflowY = 'auto'; // allow native scroll
+            
+            try {
+                const wrapper = document.createElement('div');
+                wrapper.style.display = 'flex';
+                wrapper.style.flexDirection = 'column';
+                wrapper.style.alignItems = 'center';
+                wrapper.style.gap = '24px';
+                wrapper.style.padding = '24px 0';
+                
+                for (let p = 1; p <= totalPages; p++) {
+                    const page = await currentPdf.getPage(p);
+                    const viewport = page.getViewport({ scale: scale });
+                    
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    canvas.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+                    canvas.style.backgroundColor = 'white';
+                    canvas.style.borderRadius = '4px';
+                    
+                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                    wrapper.appendChild(canvas);
+                }
+                
+                container.innerHTML = '';
+                container.appendChild(wrapper);
+                
+                document.getElementById('pageInfo').textContent = totalPages === 1 ? '1 sida' : totalPages + ' sidor';
+                document.getElementById('zoomLevel').textContent = Math.round(scale * 100) + '%';
+            } catch (err) {
+                container.innerHTML = '<div class="empty-state"><p>Kunde inte visa PDF: ' + err.message + '</p></div>';
+            }
+        }
+
+        function zoomIn() { scale += 0.25; renderAllPages(); }
+        function zoomOut() { if (scale > 0.5) { scale -= 0.25; renderAllPages(); } }
+        function openInNewTab() { if (currentFile) { window.open('/api/pdf?name=' + encodeURIComponent(currentFile), '_blank'); } }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT') return;
+            switch(e.key) {
+                case '+': case '=': zoomIn(); break;
+                case '-': zoomOut(); break;
+            }
+        });
+
+        checkAuthAndLoad();
+    </script>
+</body>
+</html>

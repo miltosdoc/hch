@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <title>{% if mode == 'errors' %}Bot Fel{% else %}Upload{% endif %} — Integrationsportal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="dashboard-body">
+    <nav class="glass-nav">
+        <div class="nav-brand">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="HCH Logo" onerror="this.style.display='none'">
+            <span>Integrationsportal</span>
+        </div>
+        <div class="nav-controls">
+            <span class="nav-active">📤 Upload</span>
+            <span class="nav-separator">|</span>
+            <a href="{{ url_for('statistics') }}" class="nav-link">📊 Statistik</a>
+            <span class="nav-separator">|</span>
+            <a href="{{ url_for('guide') }}" class="nav-link">🛡️ Guide & Legal</a>
+            <span class="nav-separator">|</span>
+            <button id="theme-toggle" class="btn-secondary" style="border-radius: 50%; padding: 0.5rem; border: none; background: transparent; cursor: pointer; font-size: 1.2rem;">🌙</button>
+            <span class="nav-separator">|</span>
+            <span id="api-status" class="status-badge connecting">Checking API...</span>
+            <a href="{{ url_for('logout') }}" class="btn-secondary">Logout</a>
+        </div>
+    </nav>
+
+    <div class="main-content" style="max-width: 900px;">
+        <!-- Sub-navigation tabs -->
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+            <a href="/dashboard" class="btn-secondary bot-errors-tab" style="border-radius: 20px; position: relative; {% if mode == 'errors' %}background: var(--primary); color: white; border-color: var(--primary);{% endif %}">
+                ⚠️ Bot Fel
+                <span id="error-badge-tab" class="error-badge" style="display: none;"></span>
+            </a>
+            <a href="/dashboard/upload" class="btn-secondary" style="border-radius: 20px; {% if mode != 'errors' %}background: var(--primary); color: white; border-color: var(--primary);{% endif %}">📤 Manuell Uppladdning</a>
+        </div>
+
+        {% if mode == 'errors' %}
+        <!-- BOT ERRORS PANEL -->
+        <div class="glass-card" style="padding: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="margin: 0; color: var(--text-main);">⚠️ Bot-uppladningsfel</h3>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <span id="error-summary" class="text-muted" style="font-size: 0.85rem;"></span>
+                    <button class="btn-primary" onclick="loadBotErrors()" style="padding: 0.5rem 1rem;">🔄 Uppdatera</button>
+                </div>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">
+                Filer som misslyckades vid automatisk uppladdning via skanner-boten. Du kan bearbeta om dem eller markera som lösta.
+            </p>
+        </div>
+
+        <div class="glass-card table-panel" style="margin-top: 1rem;">
+            <div class="table-scroll">
+                <table id="errors-table">
+                    <thead>
+                        <tr>
+                            <th>Personnummer</th>
+                            <th>Filer</th>
+                            <th>Felmeddelande</th>
+                            <th>Typ</th>
+                            <th>Tidpunkt</th>
+                            <th style="min-width: 200px;">Åtgärd</th>
+                        </tr>
+                    </thead>
+                    <tbody id="errors-tbody">
+                        <tr><td colspan="6" class="loading-cell">Laddar feldata...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% else %}
+        <!-- UPLOAD PANEL -->
+        <div class="glass-card settings-panel">
+            <h3>Configuration</h3>
+            <div class="config-row">
+                <div class="form-group">
+                    <label>Select Clinic</label>
+                    <select id="clinic-select" disabled>
+                        <option>Loading clinics...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Document Type</label>
+                    <select id="doc-type-select" disabled>
+                        <option>Loading document types...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Base Personnummer (Optional)</label>
+                    <input type="text" id="base-personnummer" placeholder="e.g. 19121212-1212">
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-card upload-panel">
+            <div class="drop-zone" id="drop-zone">
+                <svg class="upload-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                <p>Drag & Drop files here</p>
+                <p class="text-sm">or click to browse</p>
+                <p class="text-xs">Supported: JPG, PNG, PDF formats. Filename must contain Personnummer.</p>
+                <input type="file" id="file-input" multiple accept=".jpg,.jpeg,.png,.pdf,.gif,.bmp,.tif,.tiff" style="display: none;">
+            </div>
+        </div>
+
+        <div class="glass-card results-panel" id="results-panel" style="display: none;">
+            <h3>Upload Queue</h3>
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <div class="stats">
+                <span id="stat-total">Total: 0</span>
+                <span id="stat-success" class="text-success">Success: 0</span>
+                <span id="stat-failed" class="text-error">Failed: 0</span>
+            </div>
+            <ul id="file-list" class="file-list"></ul>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if mode != 'errors' %}
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    {% endif %}
+    <script src="{{ url_for('static', filename='theme.js') }}"></script>
+    <script>
+    // Bot error badge polling (runs on all upload pages)
+    function checkBotErrorBadge() {
+        fetch('/api/bot_errors/count')
+            .then(r => r.json())
+            .then(data => {
+                const badge = document.getElementById('error-badge-tab');
+                if (badge && data.db_errors > 0) {
+                    badge.textContent = data.db_errors;
+                    badge.style.display = 'flex';
+                } else if (badge) {
+                    badge.style.display = 'none';
+                }
+            })
+            .catch(() => {});
+    }
+    checkBotErrorBadge();
+    setInterval(checkBotErrorBadge, 60000);
+
+    {% if mode == 'errors' %}
+    // =========================================
+    // BOT ERROR MANAGEMENT
+    // =========================================
+    document.addEventListener('DOMContentLoaded', () => {
+        loadBotErrors();
+        // Check API status
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                const badge = document.getElementById('api-status');
+                if (data.authenticated) {
+                    badge.textContent = 'API Connected';
+                    badge.className = 'status-badge connected';
+                } else {
+                    badge.textContent = 'Auth Failed';
+                    badge.className = 'status-badge error';
+                }
+            })
+            .catch(() => {
+                const badge = document.getElementById('api-status');
+                badge.textContent = 'Offline';
+                badge.className = 'status-badge error';
+            });
+    });
+
+    async function loadBotErrors() {
+        const tbody = document.getElementById('errors-tbody');
+        const summary = document.getElementById('error-summary');
+        if (!tbody) return;
+
+        try {
+            const [errors, counts] = await Promise.all([
+                fetch('/api/bot_errors').then(r => r.json()),
+                fetch('/api/bot_errors/count').then(r => r.json())
+            ]);
+
+            if (summary) {
+                summary.textContent = `${counts.db_errors} olösta fel | ${counts.folder_files} filer i Error-mappen`;
+            }
+
+            if (errors.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="loading-cell" style="color: var(--success);">✅ Inga olösta fel! Alla uppladdningar har lyckats.</td></tr>';
+                checkBotErrorBadge();
+                return;
+            }
+
+            tbody.innerHTML = errors.map(e => {
+                const fileList = Array.isArray(e.file_names) ? e.file_names.join(', ') : e.file_names;
+                const fileCount = Array.isArray(e.file_names) ? e.file_names.length : 1;
+                const typeClass = `error-type-${e.error_type || 'upload'}`;
+                const typeLabel = {
+                    'upload': 'Uppladdning',
+                    'patient': 'Patient',
+                    'ocr': 'OCR',
+                    'pdf': 'PDF',
+                    'booking': 'Bokning'
+                }[e.error_type] || e.error_type;
+
+                let timeStr = e.created_at || '';
+                if (timeStr) {
+                    try {
+                        const d = new Date(timeStr + 'Z');
+                        timeStr = d.toLocaleDateString('sv-SE') + ' ' + d.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+                    } catch(ex) {}
+                }
+
+                return `<tr>
+                    <td class="mono">${e.personal_number || 'OKÄNT'}
+                        <button class="btn-copy" onclick="navigator.clipboard.writeText('${e.personal_number}');this.textContent='✓';setTimeout(()=>this.textContent='📋',800)" title="Kopiera">📋</button>
+                    </td>
+                    <td class="error-file-list" title="${fileList}">${fileCount} fil(er)</td>
+                    <td class="error-msg-cell" title="${e.error_message}">${e.error_message}</td>
+                    <td><span class="error-type-badge ${typeClass}">${typeLabel}</span></td>
+                    <td class="text-muted" style="font-size: 0.8rem;">${timeStr}</td>
+                    <td>
+                        <div class="error-actions">
+                            <button class="btn-reprocess" onclick="reprocessError(${e.id})" title="Flytta filer tillbaka för ombearbetning">🔄 Kör om</button>
+                            <button class="btn-resolve" onclick="resolveError(${e.id})" title="Markera som löst (redan uppladdad)">✅ Löst</button>
+                            <button class="btn-delete-error" onclick="deleteError(${e.id})" title="Radera felpost">🗑️</button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+
+        } catch(e) {
+            console.error('Failed to load bot errors:', e);
+            tbody.innerHTML = '<tr><td colspan="6" class="loading-cell" style="color: var(--error);">Kunde inte ladda feldata</td></tr>';
+        }
+    }
+
+    async function reprocessError(errorId) {
+        if (!confirm('Vill du flytta filerna tillbaka för ombearbetning? Boten kommer att försöka ladda upp dem igen.')) return;
+        try {
+            const res = await fetch(`/api/bot_errors/${errorId}/reprocess`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) { await loadBotErrors(); checkBotErrorBadge(); }
+            else { alert('Fel: ' + data.message); }
+        } catch(e) { alert('Nätverksfel'); }
+    }
+
+    async function resolveError(errorId) {
+        if (!confirm('Markera som löst? Filer i Error-mappen tas bort.')) return;
+        try {
+            const res = await fetch(`/api/bot_errors/${errorId}/resolve`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) { await loadBotErrors(); checkBotErrorBadge(); }
+            else { alert('Fel: ' + data.message); }
+        } catch(e) { alert('Nätverksfel'); }
+    }
+
+    async function deleteError(errorId) {
+        if (!confirm('Radera denna felpost permanent?')) return;
+        try {
+            const res = await fetch(`/api/bot_errors/${errorId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) { await loadBotErrors(); checkBotErrorBadge(); }
+            else { alert('Fel: ' + data.message); }
+        } catch(e) { alert('Nätverksfel'); }
+    }
+    {% endif %}
+    </script>
+</body>
+</html>
