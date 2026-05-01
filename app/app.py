@@ -13,36 +13,33 @@ from shared.db import (
     verify_user, get_user, list_users, create_user, reset_password, toggle_user,
     upsert_pnr, get_patients, get_patient_row, delete_pnr, toggle_ater, update_dates,
     log_scan, get_scanned, init_all, get_pool, teardown as _teardown,
+    create_api_key, validate_api_key, list_api_keys, revoke_api_key, delete_api_key,
 )
+from shared.auth import require_auth, require_admin, api_response, api_error
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "hch-dev-key")
 app.config["SESSION_TYPE"] = "redis"
 app.config["SESSION_REDIS"] = Redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"))
-app.config["SESSION_PERMANENT"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-app.config["SESSION_COOKIE_PATH"] = "/"
 app.config["SESSION_COOKIE_NAME"] = "hch_session"
+app.config["SESSION_COOKIE_PATH"] = "/"
 Session(app)
 
 UPLOAD_DIR = Path("/app/uploads")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+UPLOAD_DIR.mkdir(exist_ok=True)
 
-lm = LoginManager()
-lm.init_app(app)
-lm.login_view = "login"
+login_manager = LoginManager()
+login_manager.init_app(app)
 
 class U(UserMixin):
-    def __init__(self, uid, un, ia):
-        self.id = uid; self.username = un; self.is_admin = ia
+    def __init__(self, id_, username, is_admin):
+        self.id = id_; self.username = username; self.is_admin = is_admin
 
-@lm.user_loader
+@login_manager.user_loader
 def load(uid):
-    # Handle both numeric IDs (new sessions) and usernames (old sessions)
     try:
         uid_int = int(uid)
     except (ValueError, TypeError):
-        # uid is a username string from old session — look it up
         r = get_user_by_username(str(uid))
         return U(r["id"], r["username"], r["is_admin"]) if r else None
     r = get_user(uid_int)
@@ -80,7 +77,7 @@ def login():
         if u:
             login_user(U(u["id"], u["username"], u["is_admin"]), remember=True)
             return redirect(url_for("dashboard"))
-        error = "Fel anv\u00e4ndarnamn eller l\u00f6senord"
+        error = "Fel användarnamn eller lösenord"
     return render_template("login.html", error=error)
 
 @app.route("/logout")
@@ -97,12 +94,14 @@ def logout():
 def dashboard():
     return render_template("dashboard.html")
 
+# --- ADMIN ---
 @app.route("/admin")
 @login_required
 def admin_page():
     if not getattr(current_user, "is_admin", False):
         return redirect(url_for("dashboard"))
-    return render_template("admin.html", users=list_users())
+    keys = list_api_keys(current_user.id) if current_user.is_admin else []
+    return render_template("admin.html", users=list_users(), api_keys=keys)
 
 @app.route("/admin/create", methods=["POST"])
 @login_required
@@ -121,7 +120,7 @@ def admin_create():
 def admin_reset():
     if not current_user.is_admin: return redirect(url_for("admin_page"))
     uid, pw = request.form.get("user_id"), request.form.get("new_password")
-    if uid and pw: reset_password(int(uid), pw); flash("L%C3%B6senord %C3%A5terst%C3%A4llt", "ok")
+    if uid and pw: reset_password(int(uid), pw); flash("Lösenord återställt", "ok")
     return redirect(url_for("admin_page"))
 
 @app.route("/admin/toggle", methods=["POST"])
@@ -131,6 +130,51 @@ def admin_toggle():
     if request.form.get("user_id"): toggle_user(int(request.form["user_id"]))
     return redirect(url_for("admin_page"))
 
+# --- API KEY MANAGEMENT ---
+@app.route("/admin/api-key/create", methods=["POST"])
+@login_required
+def admin_create_api_key():
+    if not current_user.is_admin: return redirect(url_for("admin_page"))
+    name = request.form.get("name", "").strip()
+    plain, _ = create_api_key(current_user.id, name)
+    flash(f"API-nyckel skapad: {plain} — Spara den nu, den visas inte igen!", "ok")
+    return redirect(url_for("admin_page"))
+
+@app.route("/admin/api-key/revoke/<int:key_id>", methods=["POST"])
+@login_required
+def admin_revoke_api_key(key_id):
+    if not current_user.is_admin: return redirect(url_for("admin_page"))
+    revoke_api_key(key_id, current_user.id)
+    flash("API-nyckel inaktiverad", "ok")
+    return redirect(url_for("admin_page"))
+
+@app.route("/admin/api-key/delete/<int:key_id>", methods=["POST"])
+@login_required
+def admin_delete_api_key(key_id):
+    if not current_user.is_admin: return redirect(url_for("admin_page"))
+    delete_api_key(key_id, current_user.id)
+    flash("API-nyckel raderad", "ok")
+    return redirect(url_for("admin_page"))
+
+# --- API AUTH ENDPOINT ---
+@app.route("/api/auth/token", methods=["POST"])
+def api_auth_token():
+    """Exchange username/password for an API key token."""
+    data = request.get_json()
+    if not data:
+        return api_error("bad_request", "JSON body required"), 400
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+    if not username or not password:
+        return api_error("bad_request", "username and password required"), 400
+    
+    user = verify_user(username, password)
+    if not user:
+        return api_error("unauthorized", "Invalid credentials"), 401
+    
+    plain, _ = create_api_key(user["id"], f"{username}-cli")
+    return api_response({"token": plain, "username": username, "expires": "never"})
+
 # --- SCANNER ---
 @app.route("/scanner")
 @login_required
@@ -138,15 +182,14 @@ def scanner():
     return render_template("scanner.html")
 
 @app.route("/api/scan/upload", methods=["POST"])
-@login_required
+@require_auth
 def scan_upload():
     f = request.files.get("file")
-    if not f or f.filename=="": return jsonify({"ok":False,"msg":"Ingen fil"}), 400
+    if not f or f.filename=="": return api_error("bad_request", "Ingen fil"), 400
     fn = secure_filename(f.filename)
     fp = UPLOAD_DIR / fn
     f.save(str(fp))
     pn = find_pnr(fn)
-    # Try OCR for dates from PDF
     ref_d, vg_d, ocr_ok = None, None, False
     if fn.lower().endswith(".pdf"):
         try:
@@ -156,13 +199,13 @@ def scan_upload():
             ocr_ok = bool(txt)
             if not pn and txt: pn = find_pnr(txt)
         except: pass
-    if not pn: return jsonify({"ok":False,"msg":"Hittade inget personnummer"}), 400
+    if not pn: return api_error("not_found", "Hittade inget personnummer"), 400
     upsert_pnr(pn, ref=ref_d, vg=vg_d, uploaded=datetime.now())
     log_scan(fn, pn, ref_d, vg_d, ocr_ok)
-    return jsonify({"ok":True,"msg":"Klar","pn":pn})
+    return api_response({"ok":True,"msg":"Klar","pn":pn})
 
 @app.route("/api/scan/batch", methods=["POST"])
-@login_required
+@require_auth
 def scan_batch():
     files = request.files.getlist("file")
     results = []
@@ -175,7 +218,7 @@ def scan_batch():
             upsert_pnr(pn, uploaded=datetime.now())
             log_scan(fn, pn)
             results.append({"file": fn, "pn": pn})
-    return jsonify({"ok":True,"results":results})
+    return api_response({"results": results})
 
 # --- STATISTICS ---
 @app.route("/statistics")
@@ -184,14 +227,14 @@ def statistics():
     return render_template("statistics.html")
 
 @app.route("/api/patients")
-@login_required
+@require_auth
 def api_patients():
     ft = request.args.get("filter_type","first_booking_date")
     ps = get_patients(ft,
         request.args.get("start") or None,
         request.args.get("end") or None,
         request.args.get("mode",""))
-    return jsonify([dict(p) for p in ps])
+    return api_response([dict(p) for p in ps])
 
 def calc_stats(patients):
     wr, wv = [], []
@@ -211,43 +254,43 @@ def calc_stats(patients):
     return s(wr), s(wv)
 
 @app.route("/api/statistics/summary")
-@login_required
+@require_auth
 def api_stats():
     ps = get_patients()
     sr, sv = calc_stats(ps)
-    return jsonify({"total": len(ps), "referral": sr, "vardgaranti": sv})
+    return api_response({"total": len(ps), "referral": sr, "vardgaranti": sv})
 
 @app.route("/api/patient/<pn>", methods=["DELETE"])
-@login_required
+@require_admin
 def api_del(pn):
     delete_pnr(pn)
-    return jsonify({"ok":True})
+    return api_response({"ok":True})
 
 @app.route("/api/patient/<pn>/toggle", methods=["POST"])
-@login_required
+@require_auth
 def api_toggle(pn):
     toggle_ater(pn)
-    return jsonify({"ok":True})
+    return api_response({"ok":True})
 
 @app.route("/api/patient/<pn>/update", methods=["PUT"])
-@login_required
+@require_auth
 def api_update(pn):
     d = request.get_json()
     update_dates(pn, d.get("referral_date"), d.get("vardgaranti_date"))
-    return jsonify({"ok":True})
+    return api_response({"ok":True})
 
 @app.route("/api/scanned_files")
-@login_required
+@require_auth
 def api_scanned():
-    return jsonify([dict(f) for f in get_scanned(100)])
+    return api_response([dict(f) for f in get_scanned(100)])
 
 @app.route("/api/export/csv")
-@login_required
+@require_auth
 def api_export():
     ps = get_patients()
     out = io.StringIO()
     w = csv.writer(out)
-    w.writerow(["PN","F\u00f6rnamn","Efternamn","Uppladdad","Remiss","V\u00e5rdgaranti","Bokning"])
+    w.writerow(["PN","Förnamn","Efternamn","Uppladdad","Remiss","Vårdgaranti","Bokning"])
     for p in ps: w.writerow([p.get("personal_number",""),p.get("first_name",""),p.get("last_name",""),str(p.get("uploaded_at","")),str(p.get("referral_date","")),str(p.get("vardgaranti_date","")),str(p.get("first_booking_date",""))])
     out.seek(0)
     resp = make_response(out.getvalue())
@@ -257,4 +300,3 @@ def api_export():
 
 if __name__ == "__main__":
     with app.app_context(): init_all()
-    app.run(host="0.0.0.0", port=5000)

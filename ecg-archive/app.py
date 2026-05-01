@@ -1,22 +1,26 @@
-"""ECG Archive - Store and view ECG PDFs."""
-import os, sys, re
+"""ECG Archive - Store and retrieve ECG PDFs."""
+import os, sys
 from pathlib import Path
-from datetime import datetime
-from flask import Flask, render_template, request, jsonify, send_file, g
+from flask import Flask, render_template, request, jsonify, g, send_file
+from flask import session
 from flask_session import Session
 from redis import Redis
+from werkzeug.utils import secure_filename
 
 sys.path.insert(0, "/app")
 from shared.db import init_all, get_pool, teardown, log_ecg, get_ecgs, get_ecg
+from shared.auth import require_auth, api_response, api_error
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "hch-dev-key")
 app.config["SESSION_TYPE"] = "redis"
 app.config["SESSION_REDIS"] = Redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"))
+app.config["SESSION_COOKIE_NAME"] = "hch_session"
+app.config["SESSION_COOKIE_PATH"] = "/"
 Session(app)
 
-ECG_DIR = Path("/app/ecgs")
-ECG_DIR.mkdir(parents=True, exist_ok=True)
+UPLOAD_DIR = Path("/app/uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 @app.teardown_appcontext
 def close(e=None): teardown(e)
@@ -29,42 +33,39 @@ def portal_ctx():
 def init():
     with app.app_context(): init_all()
 
-def find_pnr(text):
-    m = re.search(r'((?:19|20)\d{6})[-+]?\d{4}', text)
-    if m: return m.group(0)
-    m = re.search(r'(\d{6})[-+](\d{4})', text)
-    if m:
-        c = "20" if int(m.group(1)[:2])<50 else "19"
-        return f"{c}{m.group(1)}-{m.group(2)}"
-    return None
-
 @app.route("/")
-def archive():
+@require_auth
+def archive_page():
     return render_template("index.html", ecgs=get_ecgs(200))
 
 @app.route("/upload", methods=["POST"])
-def ecg_upload():
+@require_auth
+def upload_ecg():
     f = request.files.get("file")
-    if not f: return jsonify({"ok":False,"msg":"Ingen fil"}), 400
-    fn = f.filename or "ecg.pdf"
-    pnr = request.form.get("pnr","") or find_pnr(fn) or ""
-    name = request.form.get("name","")
-    edate = request.form.get("exam_date","") or datetime.now().strftime("%Y-%m-%d")
-    saved = ECG_DIR / fn
-    f.save(str(saved))
-    log_ecg(fn, pnr, name, edate, str(saved))
-    return jsonify({"ok":True,"msg":"Sparad","pn":pnr})
+    if not f: return api_error("bad_request", "Ingen fil"), 400
+    fn = secure_filename(f.filename)
+    fp = UPLOAD_DIR / fn
+    f.save(str(fp))
+    pnr = request.form.get("personal_number", "")
+    name = request.form.get("patient_name", "")
+    edate = request.form.get("exam_date", "")
+    log_ecg(fn, pnr or "", name, edate or "", str(fp))
+    return api_response({"ok": True, "filename": fn})
 
 @app.route("/file/<int:eid>")
-def ecg_file(eid):
+@require_auth
+def get_file(eid):
     r = get_ecg(eid)
-    if r and r["file_path"] and os.path.exists(r["file_path"]):
-        return send_file(r["file_path"])
-    return jsonify({"ok":False}), 404
+    if not r: return api_error("not_found", "File not found"), 404
+    fp = r["file_path"]
+    if os.path.exists(fp):
+        return send_file(fp, mimetype="application/pdf")
+    return api_error("not_found", "File missing on disk"), 404
 
 @app.route("/api/list")
+@require_auth
 def api_list():
-    return jsonify([dict(e) for e in get_ecgs(200)])
+    return api_response([dict(e) for e in get_ecgs(200)])
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

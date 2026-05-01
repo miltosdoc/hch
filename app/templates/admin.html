@@ -47,4 +47,43 @@
         {% endfor %}
     </table></div>
 </div>
+
+<!-- API KEY MANAGEMENT -->
+<div class="card">
+    <h3>&#128274; API-nycklar</h3>
+    <p class="t3">Skapa API-nycklar för programmatiskt åtkomst (CLI, skript, automation).</p>
+    <form method="post" action="/admin/api-key/create" style="margin-bottom:15px">
+        <div class="row">
+            <div class="field"><label>Namn (valfritt)</label><input type="text" name="name" placeholder="t.ex. hch-cli"></div>
+        </div>
+        <button class="btn bbl" type="submit">Skapa nyckel</button>
+    </form>
+    {% if api_keys %}
+    <div class="tw"><table>
+        <tr><th>ID</th><th>Namn</th><th>Senast använd</th><th>Status</th><th>Skapad</th><th>Åtgärd</th></tr>
+        {% for k in api_keys %}
+        <tr>
+            <td>{{ k.id }}</td>
+            <td>{{ k.name or '(ingen)' }}</td>
+            <td>{{ k.last_used.strftime('%Y-%m-%d %H:%M') if k.last_used else 'aldrig' }}</td>
+            <td><span class="bd {% if k.is_active %}bg2{% else %}br{% endif %}">{{ 'Aktiv' if k.is_active else 'Inaktiv' }}</span></td>
+            <td>{{ k.created_at.strftime('%Y-%m-%d') }}</td>
+            <td class="fl">
+                {% if k.is_active %}
+                <form method="post" action="/admin/api-key/revoke/{{ k.id }}" class="fl">
+                    <button class="btn bgh" type="submit" style="padding:5px 10px;font-size:12px">Inaktivera</button>
+                </form>
+                {% else %}
+                <form method="post" action="/admin/api-key/delete/{{ k.id }}" class="fl">
+                    <button class="btn br" type="submit" style="padding:5px 10px;font-size:12px">Radera</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table></div>
+    {% else %}
+    <p class="t3">Inga API-nycklar skapade ännu.</p>
+    {% endif %}
+</div>
 {% endblock %}

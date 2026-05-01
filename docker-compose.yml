@@ -61,6 +61,8 @@ services:
         SERVICE_DIR: holter-tracker
     container_name: hch-holter-tracker
     ports: ["5003:5000"]
+    volumes:
+      - ecg_files:/app/ecgs
     environment:
       <<: *env
       WEBDOC_CLIENT_ID: ${WEBDOC_CLIENT_ID:-}

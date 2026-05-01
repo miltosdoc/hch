@@ -1,5 +1,5 @@
 """Shared PostgreSQL database layer for all HCH apps."""
-import os, json
+import os, json, secrets
 from datetime import datetime
 from contextlib import contextmanager
 from flask import g
@@ -54,6 +54,13 @@ def init_all():
     if r and r["c"] == 0:
         exec("INSERT INTO hch_users (username, password_hash, display_name, is_admin) VALUES (%s,%s,%s,%s)",
              ("admin", generate_password_hash("admin123"), "Administrator", True))
+
+    # API KEYS
+    exec("""CREATE TABLE IF NOT EXISTS api_keys (
+        id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES hch_users(id),
+        key_hash VARCHAR(200) NOT NULL, name VARCHAR(100) DEFAULT '',
+        rate_limit INTEGER DEFAULT 100, last_used TIMESTAMP,
+        is_active BOOLEAN DEFAULT TRUE, created_at TIMESTAMP DEFAULT NOW())""")
 
     # PATIENTS (shared - scan bot + tracker)
     exec("""CREATE TABLE IF NOT EXISTS patients (
@@ -117,6 +124,37 @@ def reset_password(uid, pw):
 
 def toggle_user(uid):
     exec("UPDATE hch_users SET is_active=NOT is_active WHERE id!=1 AND id=%s", (uid,))
+
+# ---------- API KEY CRUD ----------
+def create_api_key(user_id, name=""):
+    """Create a new API key. Returns (plain_key, key_id)."""
+    plain = secrets.token_urlsafe(32)
+    key_hash = generate_password_hash(plain)
+    exec("INSERT INTO api_keys (user_id, key_hash, name) VALUES (%s,%s,%s)",
+         (user_id, key_hash, name))
+    return plain, user_id
+
+def validate_api_key(token):
+    """Validate an API key token. Returns user dict or None."""
+    r = row("""SELECT ak.*, u.username, u.is_admin 
+               FROM api_keys ak JOIN hch_users u ON ak.user_id = u.id 
+               WHERE ak.key_hash = %s AND ak.is_active AND u.is_active""",
+            (token,))
+    if r and check_password_hash(r["key_hash"], token):
+        # Update last_used
+        exec("UPDATE api_keys SET last_used = NOW() WHERE id = %s", (r["id"],))
+        return {"id": r["user_id"], "username": r["username"], "is_admin": r["is_admin"]}
+    return None
+
+def list_api_keys(user_id):
+    return exec("""SELECT id, name, last_used, is_active, created_at 
+                   FROM api_keys WHERE user_id=%s ORDER BY created_at DESC""", (user_id,))
+
+def revoke_api_key(key_id, user_id):
+    exec("UPDATE api_keys SET is_active=FALSE WHERE id=%s AND user_id=%s", (key_id, user_id))
+
+def delete_api_key(key_id, user_id):
+    exec("DELETE FROM api_keys WHERE id=%s AND user_id=%s", (key_id, user_id))
 
 # ---------- PATIENT CRUD ----------
 def upsert_pnr(pnr, fn=None, ln=None, phone=None, ref=None, vg=None, booking=None, uploaded=None):
