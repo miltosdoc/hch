@@ -1,32 +1,30 @@
 {% extends "base.html" %}
 {% block nav_actions %}
-{% if current_user.is_admin %}
-<a class="nl" href="/admin">&#9881; Admin</a>
-{% endif %}
+{% if current_user.is_admin %}<a class="nb" href="/admin">&#9881; Admin</a>{% endif %}
 {% endblock %}
 {% block title %}HCH Dashboard{% endblock %}
 {% block content %}
-<h2 class="h2">Välkommen{% if current_user.username %}, {{ current_user.username }}{% endif %}</h2>
-<p class="t2 mb12">Välj en applikation:</p>
+<h2 class="ptitle">Välkommen{% if current_user.username %}, {{ current_user.username }}{% endif %}</h2>
+<p class="psub">Välj en applikation:</p>
 <div class="agrid">
-    <a class="abtn" href="/scanner">
-        <div class="i">&#128196;</div><div class="l">Scan Bot</div>
+    <a class="acard" href="/scanner">
+        <div class="ai">&#128196;</div><div class="al">Scan Bot</div><div class="ad">Ladda upp remisser</div>
     </a>
-    <a class="abtn" href="/holter-review">
-        <div class="i">&#128151;</div><div class="l">Pulsus Holter Review</div>
+    <a class="acard" href="/holter-review">
+        <div class="ai">&#10084;&#65039;</div><div class="al">Pulsus Holter Review</div><div class="ad">Analysera Holter PDF</div>
     </a>
-    <a class="abtn" href="/holter-tracker">
-        <div class="i">&#128203;</div><div class="l">Pulsus Holter Tracker</div>
+    <a class="acard" href="/holter-tracker">
+        <div class="ai">&#128203;</div><div class="al">Pulsus Holter Tracker</div><div class="ad">Enheter och bokningar</div>
     </a>
-    <a class="abtn" href="/ecg-archive">
-        <div class="i">&#129720;</div><div class="l">ECG Archive</div>
+    <a class="acard" href="/ecg-archive">
+        <div class="ai">&#129720;</div><div class="al">ECG Archive</div><div class="ad">ECG PDF-arkiv</div>
     </a>
-    <a class="abtn" href="/statistics">
-        <div class="i">&#128202;</div><div class="l">Statistik</div>
+    <a class="acard" href="/statistics">
+        <div class="ai">&#128202;</div><div class="al">Statistik</div><div class="ad">Väntetider och nyckeltal</div>
     </a>
     {% if current_user.is_admin %}
-    <a class="abtn" href="/admin" style="border-color:rgba(59,130,246,.3)">
-        <div class="i">&#9881;&#65039;</div><div class="l">Admin</div>
+    <a class="acard" href="/admin" style="border-color:rgba(42,181,160,.3)">
+        <div class="ai">&#9881;&#65039;</div><div class="al">Admin</div><div class="ad">Hantera användare</div>
     </a>
     {% endif %}
 </div>

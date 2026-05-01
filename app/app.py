@@ -21,6 +21,8 @@ app.config["SESSION_TYPE"] = "redis"
 app.config["SESSION_REDIS"] = Redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"))
 app.config["SESSION_PERMANENT"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_PATH"] = "/"
+app.config["SESSION_COOKIE_NAME"] = "hch_session"
 Session(app)
 
 UPLOAD_DIR = Path("/app/uploads")
@@ -36,7 +38,14 @@ class U(UserMixin):
 
 @lm.user_loader
 def load(uid):
-    r = get_user(int(uid))
+    # Handle both numeric IDs (new sessions) and usernames (old sessions)
+    try:
+        uid_int = int(uid)
+    except (ValueError, TypeError):
+        # uid is a username string from old session — look it up
+        r = get_user_by_username(str(uid))
+        return U(r["id"], r["username"], r["is_admin"]) if r else None
+    r = get_user(uid_int)
     return U(r["id"], r["username"], r["is_admin"]) if r else None
 
 @app.teardown_appcontext
@@ -75,10 +84,13 @@ def login():
     return render_template("login.html", error=error)
 
 @app.route("/logout")
-@login_required
 def logout():
     logout_user()
-    return redirect(url_for("login"))
+    session.pop('session', None)
+    resp = redirect(url_for("login"))
+    resp.delete_cookie("hch_session", path="/", domain=None)
+    resp.delete_cookie("session", path="/", domain=None)
+    return resp
 
 @app.route("/dashboard")
 @login_required

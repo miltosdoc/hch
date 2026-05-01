@@ -16,12 +16,12 @@ def get_pool():
     return _POOL
 
 def get_db():
-    if "db" not in g or g.get("db_closed", True):
+    if getattr(g, "db", None) is None:
         conn = get_pool().getconn()
         conn.autocommit = True
         g.db = conn
         g.db_closed = False
-    return g["db"]
+    return g.db
 
 @contextmanager
 def cur():
@@ -53,7 +53,7 @@ def init_all():
     r = row("SELECT COUNT(*) c FROM hch_users")
     if r and r["c"] == 0:
         exec("INSERT INTO hch_users (username, password_hash, display_name, is_admin) VALUES (%s,%s,%s,%s)",
-             ("admin", generate_password_hash("admin"), "Administrator", True))
+             ("admin", generate_password_hash("admin123"), "Administrator", True))
 
     # PATIENTS (shared - scan bot + tracker)
     exec("""CREATE TABLE IF NOT EXISTS patients (
@@ -101,6 +101,9 @@ def verify_user(username, password):
 
 def get_user(uid):
     return row("SELECT * FROM hch_users WHERE id=%s", (uid,))
+
+def get_user_by_username(username):
+    return row("SELECT * FROM hch_users WHERE username=%s", (username,))
 
 def list_users():
     return exec("SELECT * FROM hch_users ORDER BY id")

@@ -26,7 +26,11 @@ services:
       - redis_data:/data
 
   portal:
-    build: ./app
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+      args:
+        SERVICE_DIR: app
     container_name: hch-portal
     ports: ["5001:5000"]
     volumes:
@@ -36,7 +40,11 @@ services:
       db: {condition: service_healthy}
 
   holter-review:
-    build: ./holter-review
+    build:
+      context: .
+      dockerfile: holter-review/Dockerfile
+      args:
+        SERVICE_DIR: holter-review
     container_name: hch-holter-review
     ports: ["5002:5000"]
     volumes:
@@ -46,7 +54,11 @@ services:
       db: {condition: service_healthy}
 
   holter-tracker:
-    build: ./holter-tracker
+    build:
+      context: .
+      dockerfile: holter-tracker/Dockerfile
+      args:
+        SERVICE_DIR: holter-tracker
     container_name: hch-holter-tracker
     ports: ["5003:5000"]
     environment:
@@ -57,7 +69,11 @@ services:
       db: {condition: service_healthy}
 
   ecg-archive:
-    build: ./ecg-archive
+    build:
+      context: .
+      dockerfile: ecg-archive/Dockerfile
+      args:
+        SERVICE_DIR: ecg-archive
     container_name: hch-ecg-archive
     ports: ["5004:5000"]
     volumes:
