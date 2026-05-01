@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}HCH{% endblock %}</title>
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        :root{--bg:#09090b;--bg2:#18181b;--bg3:#27272a;--border:#2a2a2e;--text:#fafafa;--text2:#a1a1aa;--text3:#71717a;--blue:#3b82f6;--green:#22c55e;--red:#ef4444;--amber:#f59e0b;--r:10px}
+        body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+        a{color:inherit;text-decoration:none}
+        .nav{position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px}
+        .nav .logo{font-weight:700;font-size:15px}.nav .logo span{color:var(--blue)}
+        .nav .spacer{flex:1}
+        .nlink{padding:6px 12px;border-radius:8px;font-size:13px;color:var(--text2);border:1px solid var(--border);transition:all .15s;display:inline-flex;align-items:center;gap:4px}
+        .nlink:hover{background:var(--bg3);color:var(--text)}.nlink.home:hover{color:var(--blue)}.nlink.out:hover{color:var(--red)}
+        .main{max-width:960px;margin:0 auto;padding:20px 16px}
+        @media(max-width:640px){.main{padding:12px}}
+        .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:12px}
+        .card h3{font-size:15px;font-weight:600;margin-bottom:8px}.card p{color:var(--text2);font-size:13px}
+        .field{margin-bottom:12px}.field label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px}
+        input,select{width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px}
+        input:focus,select:focus{outline:none;border-color:var(--blue)}
+        .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:640px){.row{grid-template-columns:1fr}}
+        .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+        .bbl{background:var(--blue);color:#fff}.bbl:hover{opacity:.9}
+        .bgh{background:none;border:1px solid var(--border);color:var(--text2)}.bgh:hover{background:var(--bg3)}
+        .upload{border:2px dashed var(--border);border-radius:var(--r);padding:40px 20px;text-align:center;color:var(--text2);cursor:pointer;transition:all .2s}
+        .upload:hover{border-color:var(--blue)}
+        .alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px}
+        .alert-ok{background:#22c55e12;color:var(--green);border:1px solid #22c55e33}
+        .alert-err{background:#ef444412;color:var(--red);border:1px solid #ef444433}
+        .h2{font-size:18px;font-weight:700;margin-bottom:12px}.t2{color:var(--text2)}.t3{color:var(--text3)}
+        .flex{display:flex;align-items:center;gap:8px}.fbtw{display:flex;align-items:center;justify-content:space-between}
+        .tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13px}
+        th{text-align:left;padding:8px;border-bottom:1px solid var(--border);color:var(--text3);font-size:11px;text-transform:uppercase}
+        td{padding:8px;border-bottom:1px solid var(--border)}tr:hover>td{background:var(--bg3)}
+        .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+        .bb{background:#3b82f61a;color:var(--blue)}.bg2{background:#22c55e1a;color:var(--green)}.br{background:#ef44441a;color:var(--red)}.by{background:#f59e0b1a;color:var(--amber)}
+        .mb12{margin-bottom:12px}.mt8{margin-top:8px}.mt12{margin-top:12px}
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="nav">
+        <div class="logo"><span>H</span>C</div>
+        <a class="nlink home" href="/dashboard">Hem</a>
+        {% block nav_extra %}
+    <a class="nlink" href="/ecg/archive">Arkiv</a>
+{% endblock %}
+        <div class="spacer"></div>
+        <a class="nlink out" href="/portal/logout">Logga ut</a>
+    </nav>
+    <main class="main">{% block content %}{% endblock %}</main>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
+{% block title %}ECG Archive{% endblock %}
+{% block content %}
+<h2 class="h2">🫀 ECG Archive</h2>
+<p class="t2 mb12">Arkivera ECG PDF-filer. Söks med filnamn eller personnummer.</p>
+<div class="card">
+    <h3>Upload</h3>
+    <form id="uf" onsubmit="event.preventDefault();upload()">
+        <div class="row">
+            <div class="field"><label>Fil</label><input type="file" id="ufi" accept=".pdf" required></div>
+            <div class="field"><label>Personnummer</label><input id="upn" placeholder="valfritt"></div>
+        </div>
+        <div class="row">
+            <div class="field"><label>Namn</label><input id="uname" placeholder="valfritt"></div>
+            <div class="field"><label>Datum</label><input id="udate" type="date"></div>
+        </div>
+        <button class="btn bbl" type="submit">Spara</button>
+    </form>
+    <div id="status"></div>
+</div>
+<div class="card">
+    <h3>Arkiv</h3>
+    <input id="search" placeholder="Sök..." style="width:200px" oninput="filter(this.value)">
+    <div class="tw mt12"><table id="tbl"><tr><th>Fil</th><th>PN</th><th>Namn</th><th>Datum</th><th>Visa</th></tr></table></div>
+</div>
+<script>
+async function upload(){
+    const fd=new FormData();
+    fd.append('file',document.getElementById('ufi').files[0]);
+    fd.append('pnr',document.getElementById('upn').value);
+    fd.append('name',document.getElementById('uname').value);
+    fd.append('exam_date',document.getElementById('udate').value);
+    const r=await fetch('/upload',{method:'POST',body:fd});
+    const d=await r.json();
+    document.getElementById('status').innerHTML=`<div class="alert ${d.ok?'alert-ok':'alert-err'}">${d.msg}</div>`;
+    loadAll();
+}
+async function loadAll(){
+    const r=await fetch('/api/list');const d=await r.json();
+    const t=document.getElementById('tbl');
+    t.innerHTML='<tr><th>Fil</th><th>PN</th><th>Namn</th><th>Datum</th><th>Visa</th></tr>';
+    window._ecgs=d;
+    d.forEach(e=>{
+        t.innerHTML+=`<tr><td>${e.filename}</td><td>${e.personal_number||'-'}</td><td>${e.patient_name||'-'}</td><td>${e.exam_date||''}</td><td><a class="btn bgh" style="padding:2px 8px;font-size:11px" href="/file/${e.id}" target="_blank">Öppna</a></td></tr>`;
+    });
+}
+function filter(q){
+    const d=window._ecgs||[];const t=document.getElementById('tbl');
+    t.innerHTML='<tr><th>Fil</th><th>PN</th><th>Namn</th><th>Datum</th><th>Visa</th></tr>';
+    d.filter(e=>!q||e.filename.toLowerCase().includes(q.toLowerCase())||(e.personal_number||'').includes(q)).forEach(e=>{
+        t.innerHTML+=`<tr><td>${e.filename}</td><td>${e.personal_number||'-'}</td><td>${e.patient_name||'-'}</td><td>${e.exam_date||''}</td><td><a class="btn bgh" style="padding:2px 8px;font-size:11px" href="/file/${e.id}" target="_blank">Öppna</a></td></tr>`;
+    });
+}
+loadAll();
+</script>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Admin - HCH{% endblock %}
+{% block content %}
+<h2 class="h2">&#9881; Användarhantering</h2>
+<div class="card">
+    <h3>Skapa användare</h3>
+    <form method="post" action="/admin/create">
+        <div class="row">
+            <div class="field"><label>Användarnamn</label><input type="text" name="username" required></div>
+            <div class="field"><label>Lösenord</label><input type="password" name="password" required></div>
+        </div>
+        <div class="row">
+            <div class="field"><label>Namn</label><input type="text" name="display_name"></div>
+            <div class="field" style="padding-top:20px"><label><input type="checkbox" name="is_admin" style="width:auto"> Administratör</label></div>
+        </div>
+        <button class="btn bbl" type="submit">Skapa</button>
+    </form>
+</div>
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+{% for msg in messages %}<div class="al al-ok">{{ msg }}</div>{% endfor %}
+{% endif %}
+{% endwith %}
+<div class="card">
+    <h3>Användare ({{ users|length }})</h3>
+    <div class="tw"><table>
+        <tr><th></th><th>Användare</th><th>Namn</th><th>Behörighet</th><th>Active</th><th>&Auml;ndra</th></tr>
+        {% for u in users %}
+        <tr>
+            <td>{{ u.id }}</td><td>{{ u.username }}</td><td>{{ u.display_name }}</td>
+            <td>{% if u.is_admin %}<span class="bd bb">Admin</span>{% else %}<span class="t3">Användare</span>{% endif %}</td>
+            <td><span class="bd {% if u.is_active %}bg2{% else %}br{% endif %}">{{ 'Ja' if u.is_active else 'Nej' }}</span></td>
+            <td class="fl">
+                <form method="post" action="/admin/reset" class="fl">
+                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                    <input type="password" name="new_password" placeholder="Nytt lösen" style="width:130px;font-size:12px;padding:5px 8px">
+                    <button class="btn bgh" type="submit" style="padding:5px 10px;font-size:12px">Reset</button>
+                </form>
+                {% if u.id != 1 %}
+                <form method="post" action="/admin/toggle">
+                    <input type="hidden" name="user_id" value="{{ u.id }}">
+                    <button class="btn bgh" type="submit" style="padding:5px 10px;font-size:12px">Toggle</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table></div>
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Scan Bot{% endblock %}
+{% block content %}
+<h2 class="h2">&#128196; Scan Bot</h2>
+<p class="t2 mb12">Ladda upp remisser (JPG, PNG, PDF). Systemet extraherar personnummer och datum.</p>
+<div id="msgs"></div>
+<div class="card">
+    <div class="upload" id="drop" onclick="document.getElementById('fi').click()">
+        <div style="font-size:32px;margin-bottom:8px">&#128246;</div>
+        <div>Klicka eller dra filer hit</div>
+        <div class="t3 mt8">JPG, PNG, PDF - max 100MB</div>
+    </div>
+    <input type="file" id="fi" multiple accept=".jpg,.jpeg,.png,.pdf,.JPG,.PNG,.PDF" style="display:none" onchange="scan(this.files)">
+</div>
+<div class="card">
+    <div class="fbtw mb12">
+        <h3>Senaste skanningar</h3>
+        <button class="btn bgh" style="font-size:12px;padding:4px 10px" onclick="load()">&#8635; Uppdatera</button>
+    </div>
+    <div class="tw"><table id="tbl">
+        <tr><th>Fil</th><th>PN</th><th>Remiss</th><th>Vårdgaranti</th><th>Tid</th></tr>
+    </table></div>
+</div>
+<script>
+const drop=document.getElementById('drop');
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('over')});
+drop.addEventListener('dragleave',()=>{drop.classList.remove('over')});
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');scan(e.dataTransfer.files)});
+async function scan(files){
+    const m=document.getElementById('msgs');
+    for(const f of files){
+        if(['.jpg','.jpeg','.png','.pdf'].every(e=>!f.name.toLowerCase().endsWith(e)))continue;
+        const fd=new FormData();fd.append('file',f);
+        try{
+            const r=await fetch('/api/scan/upload',{method:'POST',body:fd});
+            const d=await r.json();
+            m.innerHTML=`<div class="al ${d.ok?'al-ok':'al-err'} mt8">${f.name}: ${d.msg||''}</div>`+m.innerHTML;
+        }catch(e){m.innerHTML=`<div class="al al-err mt8">${f.name}: ${e}</div>`+m.innerHTML}
+    }
+    load();
+}
+async function load(){
+    const r=await fetch('/api/scanned_files');const d=await r.json();
+    const t=document.getElementById('tbl');
+    t.innerHTML='<tr><th>Fil</th><th>PN</th><th>Remiss</th><th>Vårdgaranti</th><th>Tid</th></tr>';
+    d.slice(0,30).forEach(f=>{
+        const dt=f.created_at?f.created_at.split('T')[0].split(' ')[0]:'-';
+        t.innerHTML+=`<tr><td>${f.filename}</td><td>${f.personal_number||'-'}</td><td>${f.referral_date||'-'}</td><td>${f.vardgaranti_date||'-'}</td><td class="t3">${dt}</td></tr>`;
+    });
+}
+load();
+</script>
+{% endblock %}

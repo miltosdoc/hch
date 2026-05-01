@@ -1,41 +1,26 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Webdoc API - Login</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body class="login-body">
-    <div class="login-container">
-        <div class="glass-card" style="text-align: center;">
-            <div style="background-color: var(--nav-bg); display: inline-block; padding: 0.75rem 1.5rem; border-radius: 0.5rem; margin-bottom: 1.5rem;">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="HCH Logo" onerror="this.style.display='none'" style="height: 45px; display: block;">
-            </div>
-            <h2>Integrationsportal</h2>
-            <p style="color: var(--text-muted); margin-bottom: 2rem;">Auktoriserad Åtkomst Krävs</p>
-            
-            {% if error %}
-                <div class="alert error">{{ error }}</div>
-            {% endif %}
-            <form action="{{ url_for('login') }}" method="POST">
-                <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" name="username" required placeholder="Enter username">
-                </div>
-                <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" name="password" required placeholder="Enter password">
-                </div>
-                <button type="submit" class="btn-primary">Sign In</button>
-            </form>
-        </div>
-    </div>
-    
-    <div style="position: absolute; top: 1rem; right: 1rem;">
-        <button id="theme-toggle" class="btn-secondary" style="border-radius: 50%; padding: 0.5rem; border: none; background: transparent; cursor: pointer; font-size: 1.5rem;">🌙</button>
-    </div>
-    
-    <script src="{{ url_for('static', filename='theme.js') }}"></script>
-</body>
-</html>
+<html lang="sv">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login - HCH</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#09090b;color:#fafafa;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:100%;max-width:360px;background:#18181b;border:1px solid #2a2a2e;border-radius:14px;padding:36px 28px;text-align:center}
+h1{font-size:22px;font-weight:700;margin-bottom:4px}.logo{color:#3b82f6}
+.sub{color:#71717a;font-size:13px;margin-bottom:24px}
+.f{margin-bottom:14px}.f label{display:block;font-size:12px;color:#a1a1aa;margin-bottom:5px;text-align:left}
+input{width:100%;padding:10px 12px;background:#27272a;border:1px solid #2a2a2e;border-radius:8px;color:#fafafa;font-size:14px}
+input:focus{outline:none;border-color:#3b82f6}
+.btn{width:100%;padding:11px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;border:none;background:#3b82f6;color:#fff;margin-top:8px}
+.btn:hover{opacity:.9}
+.err{background:#ef444415;color:#ef4444;padding:10px 12px;border-radius:8px;font-size:13px;margin-top:12px;border:1px solid #ef444433}
+</style></head>
+<body><div class="card">
+    <h1>H<span class="logo">C</span></h1><p class="sub">Hjärtcentrum Halland</p>
+    <form method="post">
+        <div class="f"><label>Användarnamn</label><input type="text" name="username" autocomplete="username" required autofocus></div>
+        <div class="f"><label>Lösenord</label><input type="password" name="password" autocomplete="current-password" required></div>
+        <button class="btn" type="submit">Logga in</button>
+        {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    </form>
+</div></body></html>

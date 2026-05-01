@@ -1,0 +1,84 @@
+version: "3.8"
+
+x-env: &env
+  DATABASE_URL: postgresql://hch_user:hch_secure@db:5432/hch
+  REDIS_URL: redis://redis:6379/0
+  SECRET_KEY: ${SECRET_KEY:-HCH_SECRET_CHANGE_ME}
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: hch_user
+      POSTGRES_PASSWORD: hch_secure
+      POSTGRES_DB: hch
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hch_user"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+  portal:
+    build: ./app
+    container_name: hch-portal
+    ports: ["5001:5000"]
+    volumes:
+      - ./app/uploads:/app/uploads
+    environment: *env
+    depends_on:
+      db: {condition: service_healthy}
+
+  holter-review:
+    build: ./holter-review
+    container_name: hch-holter-review
+    ports: ["5002:5000"]
+    volumes:
+      - ./holter-review/uploads:/app/uploads
+    environment: *env
+    depends_on:
+      db: {condition: service_healthy}
+
+  holter-tracker:
+    build: ./holter-tracker
+    container_name: hch-holter-tracker
+    ports: ["5003:5000"]
+    environment:
+      <<: *env
+      WEBDOC_CLIENT_ID: ${WEBDOC_CLIENT_ID:-}
+      WEBDOC_CLIENT_SECRET: ${WEBDOC_CLIENT_SECRET:-}
+    depends_on:
+      db: {condition: service_healthy}
+
+  ecg-archive:
+    build: ./ecg-archive
+    container_name: hch-ecg-archive
+    ports: ["5004:5000"]
+    volumes:
+      - ecg_files:/app/ecgs
+    environment: *env
+    depends_on:
+      db: {condition: service_healthy}
+
+  nginx:
+    image: nginx:alpine
+    container_name: hch-nginx
+    ports: ["8080:80"]
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - portal
+      - holter-review
+      - holter-tracker
+      - ecg-archive
+
+volumes:
+  postgres_data:
+  redis_data:
+  ecg_files:

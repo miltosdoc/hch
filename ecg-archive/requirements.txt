@@ -1,0 +1,7 @@
+flask
+flask-login
+flask-session
+redis
+psycopg2-binary
+Werkzeug
+gunicorn
