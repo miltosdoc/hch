@@ -22,7 +22,7 @@ if not app.config["SESSION_REDIS"]:
     raise RuntimeError("REDIS_URL environment variable is required — set it in .env")
 app.config["SESSION_COOKIE_NAME"] = "hch_session"
 app.config["SESSION_COOKIE_PATH"] = "/"
-app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_SECURE"] = False  # True if HTTPS is enabled
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 Session(app)
 
@@ -51,6 +51,14 @@ def upload_ecg():
     f = request.files.get("file")
     if not f: return api_error("bad_request", "Ingen fil"), 400
     fn = secure_filename(f.filename)
+    if not fn.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.dcm')):
+        return api_error("bad_request", "Ogiltig filtyp — endast PDF, JPG, PNG, TIFF, DICOM"), 400
+    max_size = 10 * 1024 * 1024  # 10MB
+    f.seek(0, 2)
+    size = f.tell()
+    f.seek(0)
+    if size > max_size:
+        return api_error("bad_request", f"Filen är för stor — max {max_size // 1024 // 1024}MB"), 400
     fp = UPLOAD_DIR / fn
     f.save(str(fp))
     pnr = request.form.get("personal_number", "")

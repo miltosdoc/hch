@@ -7,6 +7,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from flask_session import Session
 from redis import Redis
 from werkzeug.utils import secure_filename
+from flask_wtf.csrf import CSRFProtect, CSRFError
 
 sys.path.insert(0, "/app")
 from shared.db import (
@@ -28,12 +29,33 @@ if not app.config["SESSION_REDIS"]:
     raise RuntimeError("REDIS_URL environment variable is required — set it in .env")
 app.config["SESSION_COOKIE_NAME"] = "hch_session"
 app.config["SESSION_COOKIE_PATH"] = "/"
-app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_SECURE"] = False  # True if HTTPS is enabled
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-Session(app)
+app.config["PERMANENT_SESSION_LIFETIME"] = 3600  # 1 hour
+app.config["WTF_CSRF_ENABLED"] = True
+app.config["WTF_CSRF_TIME_LIMIT"] = 3600  # 1 hour
+csrf = CSRFProtect(app)
+
+import logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("hch")
+
+@app.before_request
+def log_request():
+    logger.info("%s %s from %s", request.method, request.path, request.remote_addr)
 
 UPLOAD_DIR = Path("/app/uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
+
+# Handle CSRF errors gracefully
+@csrf.error_handler
+def csrf_error(e):
+    return jsonify({"error": "CSRF validation failed"}), 403
+
+# Exempt API endpoints from CSRF (they use their own auth)
+@csrf.exempt
+def exempt_api(request):
+    return request.path.startswith('/api/')
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -82,7 +104,7 @@ def login():
     if request.method == "POST":
         u = verify_user(request.form["username"].strip(), request.form["password"])
         if u:
-            login_user(U(u["id"], u["username"], u["is_admin"]), remember=True)
+            login_user(U(u["id"], u["username"], u["is_admin"]), remember=False)
             return redirect(url_for("dashboard"))
         error = "Fel användarnamn eller lösenord"
     return render_template("login.html", error=error)
@@ -180,7 +202,7 @@ def api_auth_token():
         return api_error("unauthorized", "Invalid credentials"), 401
     
     plain, _ = create_api_key(user["id"], f"{username}-cli")
-    return api_response({"token": plain, "username": username, "expires": "never"})
+    return api_response({"token": plain, "username": username, "expires": "30d"})
 
 # --- SCANNER ---
 @app.route("/scanner")
@@ -194,6 +216,14 @@ def scan_upload():
     f = request.files.get("file")
     if not f or f.filename=="": return api_error("bad_request", "Ingen fil"), 400
     fn = secure_filename(f.filename)
+    if not fn.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png', '.tiff')):
+        return api_error("bad_request", "Ogiltig filtyp — endast PDF, JPG, PNG, TIFF"), 400
+    max_size = 10 * 1024 * 1024  # 10MB
+    f.seek(0, 2)  # Seek to end
+    size = f.tell()
+    f.seek(0)  # Seek back to start
+    if size > max_size:
+        return api_error("bad_request", f"Filen är för stor — max {max_size // 1024 // 1024}MB"), 400
     fp = UPLOAD_DIR / fn
     f.save(str(fp))
     pn = find_pnr(fn)
@@ -218,6 +248,14 @@ def scan_batch():
     results = []
     for f in files:
         fn = secure_filename(f.filename)
+        if not fn.lower().endswith(('.pdf', '.jpg', '.jpeg', '.png', '.tiff')):
+            continue  # skip invalid files silently
+        max_size = 10 * 1024 * 1024  # 10MB
+        f.seek(0, 2)
+        size = f.tell()
+        f.seek(0)
+        if size > max_size:
+            continue  # skip oversized files
         fp = UPLOAD_DIR / fn
         f.save(str(fp))
         pn = find_pnr(fn)

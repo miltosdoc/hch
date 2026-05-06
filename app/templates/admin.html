@@ -5,6 +5,7 @@
 <div class="card">
     <h3>Skapa användare</h3>
     <form method="post" action="/admin/create">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="row">
             <div class="field"><label>Användarnamn</label><input type="text" name="username" required></div>
             <div class="field"><label>Lösenord</label><input type="password" name="password" required></div>
@@ -32,12 +33,14 @@
             <td><span class="bd {% if u.is_active %}bg2{% else %}br{% endif %}">{{ 'Ja' if u.is_active else 'Nej' }}</span></td>
             <td class="fl">
                 <form method="post" action="/admin/reset" class="fl">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="user_id" value="{{ u.id }}">
                     <input type="password" name="new_password" placeholder="Nytt lösen" style="width:130px;font-size:12px;padding:5px 8px">
                     <button class="btn bgh" type="submit" style="padding:5px 10px;font-size:12px">Reset</button>
                 </form>
                 {% if u.id != 1 %}
                 <form method="post" action="/admin/toggle">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="user_id" value="{{ u.id }}">
                     <button class="btn bgh" type="submit" style="padding:5px 10px;font-size:12px">Toggle</button>
                 </form>
@@ -53,6 +56,7 @@
     <h3>&#128274; API-nycklar</h3>
     <p class="t3">Skapa API-nycklar för programmatiskt åtkomst (CLI, skript, automation).</p>
     <form method="post" action="/admin/api-key/create" style="margin-bottom:15px">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="row">
             <div class="field"><label>Namn (valfritt)</label><input type="text" name="name" placeholder="t.ex. hch-cli"></div>
         </div>
@@ -71,10 +75,12 @@
             <td class="fl">
                 {% if k.is_active %}
                 <form method="post" action="/admin/api-key/revoke/{{ k.id }}" class="fl">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn bgh" type="submit" style="padding:5px 10px;font-size:12px">Inaktivera</button>
                 </form>
                 {% else %}
                 <form method="post" action="/admin/api-key/delete/{{ k.id }}" class="fl">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn br" type="submit" style="padding:5px 10px;font-size:12px">Radera</button>
                 </form>
                 {% endif %}

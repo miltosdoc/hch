@@ -21,7 +21,7 @@ if not app.config["SESSION_REDIS"]:
     raise RuntimeError("REDIS_URL environment variable is required — set it in .env")
 app.config["SESSION_COOKIE_NAME"] = "hch_session"
 app.config["SESSION_COOKIE_PATH"] = "/"
-app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_SECURE"] = False  # True if HTTPS is enabled
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 Session(app)
 

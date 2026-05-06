@@ -1,6 +1,7 @@
 flask
 flask-login
 flask-session
+flask-wtf
 redis
 psycopg2-binary
 Werkzeug

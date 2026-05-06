@@ -11,6 +11,7 @@
             <h2>Logga in</h2>
             <p>Hjärtcentrum Halland</p>
             <form method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="fl">
                     <label>Användarnamn</label>
                     <input type="text" name="username" autocomplete="username" required autofocus>
