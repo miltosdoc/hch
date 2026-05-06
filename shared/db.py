@@ -49,11 +49,15 @@ def init_all():
         id SERIAL PRIMARY KEY, username VARCHAR(100) UNIQUE NOT NULL,
         password_hash VARCHAR(200) NOT NULL, display_name VARCHAR(100) DEFAULT '',
         is_admin BOOLEAN DEFAULT FALSE, is_active BOOLEAN DEFAULT TRUE, created_at TIMESTAMP DEFAULT NOW())""")
-    # Create default admin
+    # Create default admin if no users exist
     r = row("SELECT COUNT(*) c FROM hch_users")
     if r and r["c"] == 0:
+        admin_user = os.environ.get("ADMIN_USERNAME", "admin")
+        admin_pass = os.environ.get("ADMIN_PASSWORD", "")
+        if not admin_pass:
+            raise RuntimeError("ADMIN_PASSWORD environment variable is required — set it in .env")
         exec("INSERT INTO hch_users (username, password_hash, display_name, is_admin) VALUES (%s,%s,%s,%s)",
-             ("admin", generate_password_hash("admin123"), "Administrator", True))
+             (admin_user, generate_password_hash(admin_pass), "Administrator", True))
 
     # API KEYS
     exec("""CREATE TABLE IF NOT EXISTS api_keys (

@@ -12,14 +12,21 @@ from shared.db import init_all, get_pool, teardown, log_ecg, get_ecgs, get_ecg
 from shared.auth import require_auth, api_response, api_error
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "hch-dev-key")
+_secret = os.environ.get("SECRET_KEY")
+if not _secret:
+    raise RuntimeError("SECRET_KEY environment variable is required — set it in .env")
+app.secret_key = _secret
 app.config["SESSION_TYPE"] = "redis"
-app.config["SESSION_REDIS"] = Redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"))
+app.config["SESSION_REDIS"] = Redis.from_url(os.environ.get("REDIS_URL"))
+if not app.config["SESSION_REDIS"]:
+    raise RuntimeError("REDIS_URL environment variable is required — set it in .env")
 app.config["SESSION_COOKIE_NAME"] = "hch_session"
 app.config["SESSION_COOKIE_PATH"] = "/"
+app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 Session(app)
 
-UPLOAD_DIR = Path("/app/uploads")
+UPLOAD_DIR = Path("/app/ecgs")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 @app.teardown_appcontext
