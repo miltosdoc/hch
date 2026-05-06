@@ -10,6 +10,7 @@ from redis import Redis
 sys.path.insert(0, "/app")
 from shared.db import init_all, get_pool, teardown, save_report, get_reports, get_report, upsert_pnr
 from shared.auth import require_auth, api_response, api_error
+from holter_review.health import register as register_health
 
 app = Flask(__name__)
 _secret = os.environ.get("SECRET_KEY")

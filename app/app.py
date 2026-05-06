@@ -17,6 +17,7 @@ from shared.db import (
     create_api_key, validate_api_key, list_api_keys, revoke_api_key, delete_api_key,
 )
 from shared.auth import require_auth, require_admin, api_response, api_error
+from app.health import register as register_health
 
 app = Flask(__name__)
 _secret = os.environ.get("SECRET_KEY")
@@ -59,6 +60,7 @@ def exempt_api(request):
 
 login_manager = LoginManager()
 login_manager.init_app(app)
+register_health(app)
 
 class U(UserMixin):
     def __init__(self, id_, username, is_admin):

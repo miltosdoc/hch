@@ -8,7 +8,8 @@ from redis import Redis
 
 sys.path.insert(0, "/app")
 from shared.db import init_all, get_pool, teardown, get_devices, add_device, set_device_status, get_bookings, add_booking
-from shared.auth import require_auth, require_admin, api_response, api_error
+from shared.auth import require_auth, api_response, api_error
+from holter_tracker.health import register as register_health
 
 app = Flask(__name__)
 _secret = os.environ.get("SECRET_KEY")

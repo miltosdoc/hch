@@ -10,6 +10,7 @@ from werkzeug.utils import secure_filename
 sys.path.insert(0, "/app")
 from shared.db import init_all, get_pool, teardown, log_ecg, get_ecgs, get_ecg
 from shared.auth import require_auth, api_response, api_error
+from ecg_archive.health import register as register_health
 
 app = Flask(__name__)
 _secret = os.environ.get("SECRET_KEY")
